@@ -220,7 +220,7 @@ export default function Home() {
         {items.length > 0 && (
           <button
             onClick={clearList}
-            className="mb-6 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            className="mb-6 rounded-lg border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--color-neutral-600)] shadow-brand-sm transition-all duration-150 ease-out hover:bg-[var(--color-neutral-100)] hover:text-[var(--color-neutral-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-2 focus:ring-offset-[var(--background)] dark:border-[var(--color-neutral-600)] dark:hover:bg-[var(--color-neutral-200)] dark:hover:text-[var(--color-neutral-800)]"
           >
             Clear List
           </button>
