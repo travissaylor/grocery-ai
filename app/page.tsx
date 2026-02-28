@@ -490,7 +490,7 @@ export default function Home() {
                   return (
                   <div
                     key={item.id}
-                    className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""} ${isNew ? "animate-fade-in" : ""} ${isRemoving ? "animate-fade-out" : ""}`}
+                    className={`flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""} ${isNew ? "animate-fade-in" : ""} ${isRemoving ? "animate-fade-out" : ""}`}
                   >
                     {/* Custom styled checkbox */}
                     <button
@@ -556,13 +556,13 @@ export default function Home() {
                         <span>waiting for connection</span>
                       </div>
                     )}
-                    {/* Remove button - appears on hover */}
+                    {/* Remove button - always visible for mobile accessibility */}
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="flex-shrink-0 rounded-lg p-1.5 opacity-0 text-[var(--color-neutral-400)] transition-all duration-150 ease-out hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-error)]/30"
+                      className="flex-shrink-0 rounded-lg p-3.5 text-[var(--color-neutral-400)] transition-all duration-150 ease-out hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] focus:outline-none focus:ring-2 focus:ring-[var(--color-error)]/30"
                       aria-label={`Remove ${item.name}`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
                     </button>
