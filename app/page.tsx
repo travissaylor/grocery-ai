@@ -23,6 +23,14 @@ const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
 import type { GroceryItem, PendingCategorization, PendingDeletion } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
+import {
+  loadItemFrequency,
+  saveItemFrequency,
+  incrementItemFrequency,
+  getSuggestions,
+  type ItemFrequency,
+} from "@/lib/autocomplete";
+import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
 
 function loadItemsFromStorage(): GroceryItem[] {
   if (typeof window === "undefined") return [];
@@ -105,8 +113,12 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
+  const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(loadItemFrequency);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
 
   // Save items to localStorage whenever they change
@@ -136,6 +148,22 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Auto-dismiss toast after 5 seconds (resets on new deletions)
   useEffect(() => {
@@ -233,8 +261,8 @@ export default function Home() {
     setIsRetryingPending(false);
   };
 
-  const addItem = () => {
-    const trimmedValue = inputValue.trim();
+  const addItem = (suggestion?: string) => {
+    const trimmedValue = (suggestion ?? inputValue).trim();
     if (!trimmedValue) return;
 
     const newItem: GroceryItem = {
@@ -247,6 +275,16 @@ export default function Home() {
     setItems((prev) => [...prev, newItem]);
     setNewItems((prev) => new Set(prev).add(newItem.id));
     setInputValue("");
+
+    // Update item frequency
+    const newFrequency = incrementItemFrequency(trimmedValue, itemFrequency);
+    setItemFrequency(newFrequency);
+    saveItemFrequency(newFrequency);
+
+    // Reset highlighted index and close dropdown
+    setHighlightedIndex(-1);
+    setIsDropdownOpen(false);
+
     inputRef.current?.focus();
 
     // Categorize the item asynchronously
@@ -254,9 +292,42 @@ export default function Home() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      addItem();
+    const suggestions = getSuggestions(inputValue, itemFrequency);
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      if (highlightedIndex < 0) {
+        setHighlightedIndex(0);
+      } else if (highlightedIndex < suggestions.length - 1) {
+        setHighlightedIndex(highlightedIndex + 1);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      if (highlightedIndex > 0) {
+        setHighlightedIndex(highlightedIndex - 1);
+      } else if (highlightedIndex === 0) {
+        setHighlightedIndex(-1);
+      }
+    } else if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+        addItem(suggestions[highlightedIndex]);
+      } else {
+        addItem();
+      }
+    } else if (e.key === "Escape") {
+      setHighlightedIndex(-1);
+      setIsDropdownOpen(false);
     }
+  };
+
+  const handleSuggestionSelect = (suggestion: string) => {
+    addItem(suggestion);
+  };
+
+  const handleHighlightChange = (index: number) => {
+    setHighlightedIndex(index);
   };
 
   const toggleChecked = (itemId: string) => {
@@ -424,18 +495,49 @@ export default function Home() {
         {/* Item input area */}
         <div className="mb-8">
           <div className="flex gap-3">
-            <input
-              ref={inputRef}
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Add an item (e.g., milk, bread...)"
-              className="flex-1 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-5 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--color-neutral-400)] shadow-brand-md transition-all duration-150 ease-out focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 dark:border-[var(--color-neutral-400)] dark:placeholder-[var(--color-neutral-500)]"
-              autoFocus
-            />
+            <div ref={containerRef} className="relative flex-1">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inputValue}
+                onChange={(e) => {
+                  setInputValue(e.target.value);
+                  setHighlightedIndex(-1); // Reset highlight when input changes
+                  setIsDropdownOpen(true); // Open dropdown when typing
+                }}
+                onFocus={() => {
+                  // Reopen dropdown on focus if input has matching content
+                  if (inputValue.length >= 2) {
+                    setIsDropdownOpen(true);
+                  }
+                }}
+                onBlur={(e) => {
+                  // Close dropdown if focus leaves the container (e.g., tabbing away)
+                  // But keep open if clicking on a suggestion (relatedTarget is in container)
+                  if (
+                    !containerRef.current ||
+                    !containerRef.current.contains(e.relatedTarget as Node)
+                  ) {
+                    setIsDropdownOpen(false);
+                    setHighlightedIndex(-1);
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Add an item (e.g., milk, bread...)"
+                className="w-full rounded-xl border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-5 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--color-neutral-400)] shadow-brand-md transition-all duration-150 ease-out focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 dark:border-[var(--color-neutral-400)] dark:placeholder-[var(--color-neutral-500)]"
+                autoFocus
+              />
+              <AutocompleteDropdown
+                inputValue={inputValue}
+                frequency={itemFrequency}
+                highlightedIndex={highlightedIndex}
+                isOpen={isDropdownOpen}
+                onSelect={handleSuggestionSelect}
+                onHighlight={handleHighlightChange}
+              />
+            </div>
             <button
-              onClick={addItem}
+              onClick={() => addItem()}
               className="rounded-xl bg-[var(--color-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-brand-md transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] hover:shadow-brand-lg active:scale-[0.98] active:bg-[var(--color-primary-active)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:ring-offset-2 focus:ring-offset-[var(--background)]"
             >
               Add
