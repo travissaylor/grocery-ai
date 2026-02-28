@@ -21,7 +21,7 @@ function useOnlineStatus(): boolean {
 
 const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
-import type { GroceryItem, PendingCategorization } from "@/lib/types";
+import type { GroceryItem, PendingCategorization, PendingDeletion } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
 
 function loadItemsFromStorage(): GroceryItem[] {
@@ -105,6 +105,7 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
+  const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
 
@@ -135,6 +136,17 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Auto-dismiss toast after 5 seconds (resets on new deletions)
+  useEffect(() => {
+    if (pendingDeletions.length === 0) return;
+
+    const timer = setTimeout(() => {
+      setPendingDeletions([]);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [pendingDeletions.length]);
 
   // Retry pending categorizations when network comes back online
   useEffect(() => {
@@ -256,19 +268,60 @@ export default function Home() {
   };
 
   const removeItem = useCallback((itemId: string) => {
-    // Add to removing set to trigger fade-out animation
+    // Start the fade-out animation
     setRemovingItems((prev) => new Set(prev).add(itemId));
 
-    // Wait for animation to complete before actually removing
+    // Wait for animation to complete (150ms) before actually removing
     setTimeout(() => {
-      setItems((prev) => prev.filter((item) => item.id !== itemId));
+      // Capture item info before removing, then update both states separately.
+      // setPendingDeletions must NOT be inside the setItems updater — React strict
+      // mode calls updaters twice, which would create duplicate pending deletions.
+      setItems((prevItems) => {
+        const itemIndex = prevItems.findIndex((item) => item.id === itemId);
+        const item = prevItems[itemIndex];
+
+        if (item) {
+          setPendingDeletions((prev) => {
+            // Guard against duplicates from strict mode double-invocation
+            if (prev.some((d) => d.item.id === itemId)) return prev;
+            return [...prev, { item, originalIndex: itemIndex }];
+          });
+        }
+
+        return prevItems.filter((i) => i.id !== itemId);
+      });
+
+      // Clear the removing state
       setRemovingItems((prev) => {
         const next = new Set(prev);
         next.delete(itemId);
         return next;
       });
-    }, 150); // Match animation duration
+    }, 150); // Match the CSS animation duration
   }, []);
+
+  const undoDeletion = useCallback(() => {
+    if (pendingDeletions.length === 0) return;
+
+    // Get the most recently deleted item (last in array)
+    const mostRecent = pendingDeletions[pendingDeletions.length - 1];
+    const { item, originalIndex } = mostRecent;
+
+    // Restore item to its original position
+    setItems((prev) => {
+      const newItems = [...prev];
+      // Clamp index to valid range
+      const insertIndex = Math.min(originalIndex, newItems.length);
+      newItems.splice(insertIndex, 0, item);
+      return newItems;
+    });
+
+    // Trigger fade-in animation for the restored item
+    setNewItems((prev) => new Set(prev).add(item.id));
+
+    // Remove only the undone item from pending deletions
+    setPendingDeletions((prev) => prev.slice(0, -1));
+  }, [pendingDeletions]);
 
   const clearList = () => {
     if (window.confirm("Clear all items?")) {
@@ -490,7 +543,7 @@ export default function Home() {
                   return (
                   <div
                     key={item.id}
-                    className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""} ${isNew ? "animate-fade-in" : ""} ${isRemoving ? "animate-fade-out" : ""}`}
+                    className={`flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""} ${isNew ? "animate-fade-in" : ""} ${isRemoving ? "animate-fade-out" : ""}`}
                   >
                     {/* Custom styled checkbox */}
                     <button
@@ -556,13 +609,13 @@ export default function Home() {
                         <span>waiting for connection</span>
                       </div>
                     )}
-                    {/* Remove button - appears on hover */}
+                    {/* Remove button - always visible for mobile accessibility */}
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="flex-shrink-0 rounded-lg p-1.5 opacity-0 text-[var(--color-neutral-400)] transition-all duration-150 ease-out hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-error)]/30"
+                      className="flex-shrink-0 rounded-lg p-3.5 text-[var(--color-neutral-400)] transition-all duration-150 ease-out hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] focus:outline-none focus:ring-2 focus:ring-[var(--color-error)]/30"
                       aria-label={`Remove ${item.name}`}
                     >
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
                     </button>
@@ -574,6 +627,27 @@ export default function Home() {
           ))}
         </div>
       </main>
+
+      {/* Undo toast */}
+      {pendingDeletions.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
+        >
+          <span className="text-sm text-[var(--foreground)]">
+            {pendingDeletions.length === 1
+              ? "Item deleted"
+              : `${pendingDeletions.length} items deleted`}
+          </span>
+          <button
+            onClick={undoDeletion}
+            className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50"
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }

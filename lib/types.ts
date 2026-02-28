@@ -12,3 +12,8 @@ export type PendingCategorization = {
   itemId: string;
   itemName: string;
 };
+
+export type PendingDeletion = {
+  item: GroceryItem;
+  originalIndex: number;
+};
