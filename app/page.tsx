@@ -273,14 +273,19 @@ export default function Home() {
 
     // Wait for animation to complete (150ms) before actually removing
     setTimeout(() => {
-      // Find the item and its original index before removing
+      // Capture item info before removing, then update both states separately.
+      // setPendingDeletions must NOT be inside the setItems updater — React strict
+      // mode calls updaters twice, which would create duplicate pending deletions.
       setItems((prevItems) => {
         const itemIndex = prevItems.findIndex((item) => item.id === itemId);
         const item = prevItems[itemIndex];
 
         if (item) {
-          // Append to pending deletions for potential undo
-          setPendingDeletions((prev) => [...prev, { item, originalIndex: itemIndex }]);
+          setPendingDeletions((prev) => {
+            // Guard against duplicates from strict mode double-invocation
+            if (prev.some((d) => d.item.id === itemId)) return prev;
+            return [...prev, { item, originalIndex: itemIndex }];
+          });
         }
 
         return prevItems.filter((i) => i.id !== itemId);
