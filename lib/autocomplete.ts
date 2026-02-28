@@ -5,6 +5,42 @@ export type AutocompleteItem = {
   category?: SectionKey;
 };
 
+export type ItemFrequency = Record<string, number>;
+
+export const ITEM_FREQUENCY_KEY = "grocery-list-item-frequency";
+
+export function loadItemFrequency(): ItemFrequency {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const stored = localStorage.getItem(ITEM_FREQUENCY_KEY);
+    if (stored) {
+      return JSON.parse(stored) as ItemFrequency;
+    }
+  } catch {
+    // Invalid data, return empty
+  }
+  return {};
+}
+
+export function saveItemFrequency(frequency: ItemFrequency): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  localStorage.setItem(ITEM_FREQUENCY_KEY, JSON.stringify(frequency));
+}
+
+export function incrementItemFrequency(
+  itemName: string,
+  frequency: ItemFrequency
+): ItemFrequency {
+  const normalizedName = itemName.toLowerCase().trim();
+  const newFrequency = { ...frequency };
+  newFrequency[normalizedName] = (newFrequency[normalizedName] ?? 0) + 1;
+  return newFrequency;
+}
+
 export const COMMON_ITEMS: AutocompleteItem[] = [
   // Produce
   { name: "Apple", category: "produce" },
