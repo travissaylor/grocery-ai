@@ -2,12 +2,33 @@
 
 import { useState, useRef } from "react";
 import type { GroceryItem } from "@/lib/types";
-import { FALLBACK_SECTION_KEY } from "@/lib/sections";
+import { FALLBACK_SECTION_KEY, type SectionKey } from "@/lib/sections";
 
 export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>([]);
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const categorizeItem = async (itemId: string, itemName: string) => {
+    try {
+      const response = await fetch("/api/categorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item: itemName }),
+      });
+
+      const data = await response.json();
+      const section: SectionKey = data.section || FALLBACK_SECTION_KEY;
+
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === itemId ? { ...item, section } : item
+        )
+      );
+    } catch {
+      // On error, item remains in "other" section
+    }
+  };
 
   const addItem = () => {
     const trimmedValue = inputValue.trim();
@@ -23,6 +44,9 @@ export default function Home() {
     setItems((prev) => [...prev, newItem]);
     setInputValue("");
     inputRef.current?.focus();
+
+    // Categorize the item asynchronously
+    categorizeItem(newItem.id, trimmedValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
