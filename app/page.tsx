@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import type { GroceryItem } from "@/lib/types";
-import { FALLBACK_SECTION_KEY, type SectionKey } from "@/lib/sections";
+import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
 
 export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>([]);
@@ -55,6 +55,27 @@ export default function Home() {
     }
   };
 
+  // Group items by section, maintaining the order defined in SECTIONS
+  // and the order items were added within each section
+  const groupedItems = useMemo(() => {
+    const groups = new Map<SectionKey, GroceryItem[]>();
+
+    // Initialize groups for all sections that have items
+    for (const item of items) {
+      const sectionItems = groups.get(item.section) || [];
+      sectionItems.push(item);
+      groups.set(item.section, sectionItems);
+    }
+
+    // Return sections in the predefined order, only those with items
+    return SECTIONS
+      .filter((section) => groups.has(section.key))
+      .map((section) => ({
+        section,
+        items: groups.get(section.key) || [],
+      }));
+  }, [items]);
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <main className="mx-auto max-w-3xl px-4 py-8">
@@ -81,15 +102,24 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <span className="text-zinc-900 dark:text-zinc-50">
-                {item.name}
-              </span>
+        <div className="space-y-6">
+          {groupedItems.map(({ section, items }) => (
+            <div key={section.key}>
+              <h2 className="mb-2 text-lg font-semibold text-zinc-700 dark:text-zinc-300">
+                {section.displayName}
+              </h2>
+              <div className="space-y-2">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <span className="text-zinc-900 dark:text-zinc-50">
+                      {item.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
