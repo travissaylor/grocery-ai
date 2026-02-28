@@ -21,7 +21,7 @@ function useOnlineStatus(): boolean {
 
 const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
-import type { GroceryItem, PendingCategorization } from "@/lib/types";
+import type { GroceryItem, PendingCategorization, PendingDeletion } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
 
 function loadItemsFromStorage(): GroceryItem[] {
@@ -105,6 +105,7 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
 
@@ -135,6 +136,17 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (!pendingDeletion) return;
+
+    const timer = setTimeout(() => {
+      setPendingDeletion(null);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [pendingDeletion]);
 
   // Retry pending categorizations when network comes back online
   useEffect(() => {
@@ -256,19 +268,44 @@ export default function Home() {
   };
 
   const removeItem = useCallback((itemId: string) => {
-    // Add to removing set to trigger fade-out animation
-    setRemovingItems((prev) => new Set(prev).add(itemId));
+    // Find the item and its original index before removing
+    setItems((prevItems) => {
+      const itemIndex = prevItems.findIndex((item) => item.id === itemId);
+      const item = prevItems[itemIndex];
 
-    // Wait for animation to complete before actually removing
-    setTimeout(() => {
-      setItems((prev) => prev.filter((item) => item.id !== itemId));
-      setRemovingItems((prev) => {
-        const next = new Set(prev);
-        next.delete(itemId);
-        return next;
-      });
-    }, 150); // Match animation duration
+      if (item) {
+        // Store for potential undo
+        setPendingDeletion({ item, originalIndex: itemIndex });
+      }
+
+      return prevItems.filter((i) => i.id !== itemId);
+    });
+
+    // Clear any existing removing state immediately since we're removing
+    setRemovingItems((prev) => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
   }, []);
+
+  const undoDeletion = useCallback(() => {
+    if (!pendingDeletion) return;
+
+    const { item, originalIndex } = pendingDeletion;
+
+    // Restore item to its original position
+    setItems((prev) => {
+      const newItems = [...prev];
+      // Clamp index to valid range
+      const insertIndex = Math.min(originalIndex, newItems.length);
+      newItems.splice(insertIndex, 0, item);
+      return newItems;
+    });
+
+    // Clear pending deletion
+    setPendingDeletion(null);
+  }, [pendingDeletion]);
 
   const clearList = () => {
     if (window.confirm("Clear all items?")) {
@@ -574,6 +611,23 @@ export default function Home() {
           ))}
         </div>
       </main>
+
+      {/* Undo toast */}
+      {pendingDeletion && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
+        >
+          <span className="text-sm text-[var(--foreground)]">Item deleted</span>
+          <button
+            onClick={undoDeletion}
+            className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50"
+          >
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }
