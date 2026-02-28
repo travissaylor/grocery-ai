@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   title: "Grocery AI - Smart Shopping Lists",
   description: "AI-powered grocery list that automatically organizes items by store section",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
   openGraph: {
     title: "Grocery AI - Smart Shopping Lists",
     description: "AI-powered grocery list that automatically organizes items by store section",
