@@ -1,13 +1,33 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
+
+const LOCAL_STORAGE_KEY = "grocery-list";
 import type { GroceryItem } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
 
+function loadItemsFromStorage(): GroceryItem[] {
+  if (typeof window === "undefined") return [];
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved) as GroceryItem[];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export default function Home() {
-  const [items, setItems] = useState<GroceryItem[]>([]);
+  const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Save items to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
+  }, [items]);
 
   const categorizeItem = async (itemId: string, itemName: string) => {
     try {
@@ -67,6 +87,12 @@ export default function Home() {
     setItems((prev) => prev.filter((item) => item.id !== itemId));
   };
 
+  const clearList = () => {
+    if (window.confirm("Clear all items?")) {
+      setItems([]);
+    }
+  };
+
   // Group items by section, maintaining the order defined in SECTIONS
   // and the order items were added within each section
   const groupedItems = useMemo(() => {
@@ -113,6 +139,15 @@ export default function Home() {
             Add
           </button>
         </div>
+
+        {items.length > 0 && (
+          <button
+            onClick={clearList}
+            className="mb-6 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+          >
+            Clear List
+          </button>
+        )}
 
         <div className="space-y-6">
           {groupedItems.map(({ section, items }) => (
