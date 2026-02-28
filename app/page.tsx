@@ -55,6 +55,14 @@ export default function Home() {
     }
   };
 
+  const toggleChecked = (itemId: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      )
+    );
+  };
+
   // Group items by section, maintaining the order defined in SECTIONS
   // and the order items were added within each section
   const groupedItems = useMemo(() => {
@@ -112,9 +120,22 @@ export default function Home() {
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                    className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
                   >
-                    <span className="text-zinc-900 dark:text-zinc-50">
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => toggleChecked(item.id)}
+                      className="h-5 w-5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span
+                      className={`text-zinc-900 dark:text-zinc-50 ${
+                        item.checked
+                          ? "text-decoration-line opacity-50"
+                          : ""
+                      }`}
+                      style={item.checked ? { textDecoration: "line-through" } : {}}
+                    >
                       {item.name}
                     </span>
                   </div>
