@@ -27,6 +27,7 @@ import {
   loadItemFrequency,
   saveItemFrequency,
   incrementItemFrequency,
+  getSuggestions,
   type ItemFrequency,
 } from "@/lib/autocomplete";
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
@@ -260,8 +261,32 @@ export default function Home() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      addItem();
+    const suggestions = getSuggestions(inputValue, itemFrequency);
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      if (highlightedIndex < 0) {
+        setHighlightedIndex(0);
+      } else if (highlightedIndex < suggestions.length - 1) {
+        setHighlightedIndex(highlightedIndex + 1);
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      if (highlightedIndex > 0) {
+        setHighlightedIndex(highlightedIndex - 1);
+      } else if (highlightedIndex === 0) {
+        setHighlightedIndex(-1);
+      }
+    } else if (e.key === "Enter") {
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+        addItem(suggestions[highlightedIndex]);
+      } else {
+        addItem();
+      }
+    } else if (e.key === "Escape") {
+      setHighlightedIndex(-1);
     }
   };
 
