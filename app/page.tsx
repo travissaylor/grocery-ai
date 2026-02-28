@@ -22,6 +22,7 @@ function loadItemsFromStorage(): GroceryItem[] {
 export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
+  const [categorizingItems, setCategorizingItems] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Save items to localStorage whenever they change
@@ -30,6 +31,9 @@ export default function Home() {
   }, [items]);
 
   const categorizeItem = async (itemId: string, itemName: string) => {
+    // Mark item as being categorized
+    setCategorizingItems((prev) => new Set(prev).add(itemId));
+
     try {
       const response = await fetch("/api/categorize", {
         method: "POST",
@@ -47,6 +51,13 @@ export default function Home() {
       );
     } catch {
       // On error, item remains in "other" section
+    } finally {
+      // Remove from categorizing set
+      setCategorizingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
     }
   };
 
@@ -182,6 +193,71 @@ export default function Home() {
           </button>
         )}
 
+        {/* Empty state */}
+        {items.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            {/* Empty state illustration/icon */}
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-[var(--color-primary-lighter)] shadow-brand-md">
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 40 40"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="text-[var(--color-primary)]"
+              >
+                {/* Shopping basket icon */}
+                <path
+                  d="M8 15C8 13.8954 8.89543 13 10 13H30C31.1046 13 32 13.8954 32 15V17C32 18.1046 31.1046 19 30 19H10C8.89543 19 8 18.1046 8 17V15Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M10 19V30C10 31.1046 10.8954 32 12 32H28C29.1046 32 30 31.1046 30 30V19"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M15 13V10C15 8.89543 15.8954 8 17 8H23C24.1046 8 25 8.89543 25 10V13"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M16 24V27"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M20 24V27"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M24 24V27"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            {/* Empty state message */}
+            <p className="mb-2 text-lg font-medium text-[var(--foreground)]">
+              Your list is empty
+            </p>
+            <p className="text-sm text-[var(--color-neutral-500)]">
+              Add your first item to get started!
+            </p>
+          </div>
+        )}
+
         <div className="space-y-5">
           {groupedItems.map(({ section, items }) => (
             <div
@@ -197,10 +273,12 @@ export default function Home() {
               </div>
               {/* Items list */}
               <div className="space-y-1.5">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const isCategorizing = categorizingItems.has(item.id);
+                  return (
                   <div
                     key={item.id}
-                    className="group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)]"
+                    className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""}`}
                   >
                     {/* Custom styled checkbox */}
                     <button
@@ -246,6 +324,16 @@ export default function Home() {
                         }`}
                       />
                     </span>
+                    {/* Categorizing indicator */}
+                    {isCategorizing && (
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--color-primary)]">
+                        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>sorting...</span>
+                      </div>
+                    )}
                     {/* Remove button - appears on hover */}
                     <button
                       onClick={() => removeItem(item.id)}
@@ -257,7 +345,8 @@ export default function Home() {
                       </svg>
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
