@@ -268,25 +268,31 @@ export default function Home() {
   };
 
   const removeItem = useCallback((itemId: string) => {
-    // Find the item and its original index before removing
-    setItems((prevItems) => {
-      const itemIndex = prevItems.findIndex((item) => item.id === itemId);
-      const item = prevItems[itemIndex];
+    // Start the fade-out animation
+    setRemovingItems((prev) => new Set(prev).add(itemId));
 
-      if (item) {
-        // Store for potential undo
-        setPendingDeletion({ item, originalIndex: itemIndex });
-      }
+    // Wait for animation to complete (150ms) before actually removing
+    setTimeout(() => {
+      // Find the item and its original index before removing
+      setItems((prevItems) => {
+        const itemIndex = prevItems.findIndex((item) => item.id === itemId);
+        const item = prevItems[itemIndex];
 
-      return prevItems.filter((i) => i.id !== itemId);
-    });
+        if (item) {
+          // Store for potential undo
+          setPendingDeletion({ item, originalIndex: itemIndex });
+        }
 
-    // Clear any existing removing state immediately since we're removing
-    setRemovingItems((prev) => {
-      const next = new Set(prev);
-      next.delete(itemId);
-      return next;
-    });
+        return prevItems.filter((i) => i.id !== itemId);
+      });
+
+      // Clear the removing state
+      setRemovingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 150); // Match the CSS animation duration
   }, []);
 
   const undoDeletion = useCallback(() => {
@@ -302,6 +308,9 @@ export default function Home() {
       newItems.splice(insertIndex, 0, item);
       return newItems;
     });
+
+    // Trigger fade-in animation for the restored item
+    setNewItems((prev) => new Set(prev).add(item.id));
 
     // Clear pending deletion
     setPendingDeletion(null);
