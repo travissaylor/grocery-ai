@@ -1,6 +1,23 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } from "react";
+
+// Custom hook to track online/offline status
+function useOnlineStatus(): boolean {
+  const subscribe = (callback: () => void) => {
+    window.addEventListener("online", callback);
+    window.addEventListener("offline", callback);
+    return () => {
+      window.removeEventListener("online", callback);
+      window.removeEventListener("offline", callback);
+    };
+  };
+
+  const getSnapshot = () => navigator.onLine;
+  const getServerSnapshot = () => true; // Assume online during SSR
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
 
 const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
@@ -88,6 +105,7 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isOnline = useOnlineStatus();
 
   // Save items to localStorage whenever they change
   useEffect(() => {
@@ -295,6 +313,17 @@ export default function Home() {
           {/* Gradient accent line */}
           <div className="mx-auto mt-6 h-px w-24 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-40" />
         </header>
+
+        {/* Offline status indicator */}
+        {!isOnline && (
+          <div className="mb-6 flex items-center justify-center gap-2 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--color-neutral-100)] px-4 py-3 text-sm text-[var(--color-neutral-600)] shadow-brand-sm dark:border-[var(--color-neutral-600)] dark:bg-[var(--color-neutral-200)] dark:text-[var(--color-neutral-700)]">
+            <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>You&apos;re offline — categorization will resume when connected</span>
+          </div>
+        )}
 
         {/* Item input area */}
         <div className="mb-8">
