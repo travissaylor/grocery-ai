@@ -5,4 +5,10 @@ export type GroceryItem = {
   name: string;
   section: SectionKey;
   checked: boolean;
+  pendingCategorization?: boolean;
+};
+
+export type PendingCategorization = {
+  itemId: string;
+  itemName: string;
 };

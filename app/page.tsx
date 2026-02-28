@@ -3,7 +3,8 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 
 const LOCAL_STORAGE_KEY = "grocery-list";
-import type { GroceryItem } from "@/lib/types";
+const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
+import type { GroceryItem, PendingCategorization } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
 
 function loadItemsFromStorage(): GroceryItem[] {
@@ -17,6 +18,28 @@ function loadItemsFromStorage(): GroceryItem[] {
     }
   }
   return [];
+}
+
+function loadPendingCategorizations(): PendingCategorization[] {
+  if (typeof window === "undefined") return [];
+  const saved = localStorage.getItem(PENDING_CATEGORIZATION_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved) as PendingCategorization[];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function savePendingCategorizations(pending: PendingCategorization[]): void {
+  if (typeof window === "undefined") return;
+  if (pending.length === 0) {
+    localStorage.removeItem(PENDING_CATEGORIZATION_KEY);
+  } else {
+    localStorage.setItem(PENDING_CATEGORIZATION_KEY, JSON.stringify(pending));
+  }
 }
 
 // Register service worker for PWA offline support (production only)
@@ -63,6 +86,7 @@ export default function Home() {
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
   const [newItems, setNewItems] = useState<Set<string>>(new Set());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Save items to localStorage whenever they change
@@ -88,6 +112,30 @@ export default function Home() {
     }
   }, [newItems]);
 
+  // Save pending categorizations to localStorage whenever they change
+  useEffect(() => {
+    savePendingCategorizations(pendingCategorizations);
+  }, [pendingCategorizations]);
+
+  // Retry pending categorizations when network comes back online
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => {
+      if (pendingCategorizations.length === 0) return;
+
+      // Retry all pending categorizations within 5 seconds
+      pendingCategorizations.forEach((pending, index) => {
+        setTimeout(() => {
+          categorizeItem(pending.itemId, pending.itemName);
+        }, index * 100); // Stagger retries to avoid overwhelming the API
+      });
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [pendingCategorizations]);
+
   const categorizeItem = async (itemId: string, itemName: string) => {
     // Mark item as being categorized
     setCategorizingItems((prev) => new Set(prev).add(itemId));
@@ -104,11 +152,31 @@ export default function Home() {
 
       setItems((prev) =>
         prev.map((item) =>
-          item.id === itemId ? { ...item, section } : item
+          item.id === itemId ? { ...item, section, pendingCategorization: false } : item
         )
       );
-    } catch {
-      // On error, item remains in "other" section
+
+      // Remove from pending categorizations on success
+      setPendingCategorizations((prev) =>
+        prev.filter((p) => p.itemId !== itemId)
+      );
+    } catch (error) {
+      // Check if this is a network error (offline)
+      if (!navigator.onLine || error instanceof TypeError) {
+        // Mark item as pending categorization
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, pendingCategorization: true } : item
+          )
+        );
+
+        // Add to pending categorizations if not already there
+        setPendingCategorizations((prev) => {
+          if (prev.some((p) => p.itemId === itemId)) return prev;
+          return [...prev, { itemId, itemName }];
+        });
+      }
+      // On other errors, item remains in "other" section
     } finally {
       // Remove from categorizing set
       setCategorizingItems((prev) => {
@@ -404,6 +472,16 @@ export default function Home() {
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                         <span>sorting...</span>
+                      </div>
+                    )}
+                    {/* Pending categorization indicator (waiting for connection) */}
+                    {item.pendingCategorization && !isCategorizing && (
+                      <div className="flex items-center gap-1.5 text-xs text-[var(--color-neutral-500)]">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        <span>waiting for connection</span>
                       </div>
                     )}
                     {/* Remove button - appears on hover */}
