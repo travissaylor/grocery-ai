@@ -182,40 +182,48 @@ export default function Home() {
           </button>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-5">
           {groupedItems.map(({ section, items }) => (
-            <div key={section.key}>
-              <h2 className="mb-2 text-lg font-semibold text-zinc-700 dark:text-zinc-300">
-                {section.displayName}
-              </h2>
+            <div
+              key={section.key}
+              className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-brand-md transition-all duration-150 ease-out"
+            >
+              {/* Section header with brand color accent */}
+              <div className="mb-4 flex items-center gap-3">
+                <div className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
+                <h2 className="text-base font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                  {section.displayName}
+                </h2>
+              </div>
+              {/* Items list */}
               <div className="space-y-2">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900"
+                    className="group flex items-center gap-3 rounded-xl px-4 py-3 transition-colors duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-neutral-200)]"
                   >
                     <input
                       type="checkbox"
                       checked={item.checked}
                       onChange={() => toggleChecked(item.id)}
-                      className="h-5 w-5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                      className="h-5 w-5 rounded-md border-2 border-[var(--color-neutral-300)] text-[var(--color-primary)] transition-colors duration-150 focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-0 dark:border-[var(--color-neutral-500)]"
                     />
                     <span
-                      className={`flex-1 text-zinc-900 dark:text-zinc-50 ${
-                        item.checked
-                          ? "text-decoration-line opacity-50"
-                          : ""
+                      className={`flex-1 text-[var(--foreground)] transition-all duration-200 ${
+                        item.checked ? "opacity-50" : ""
                       }`}
-                      style={item.checked ? { textDecoration: "line-through" } : {}}
+                      style={item.checked ? { textDecoration: "line-through", textDecorationColor: "var(--color-neutral-400)" } : {}}
                     >
                       {item.name}
                     </span>
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                      className="opacity-0 text-[var(--color-neutral-400)] transition-all duration-150 hover:text-[var(--color-error)] group-hover:opacity-100"
                       aria-label="Remove item"
                     >
-                      ✕
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
                     </button>
                   </div>
                 ))}
