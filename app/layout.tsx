@@ -38,6 +38,14 @@ export const metadata: Metadata = {
     images: ["/icon.png"],
   },
   themeColor: "#4F46E5",
+  appleWebApp: {
+    capable: true,
+    title: "Grocery AI",
+    statusBarStyle: "default",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export default function RootLayout({
