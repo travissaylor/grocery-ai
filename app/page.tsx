@@ -147,23 +147,30 @@ export default function Home() {
           <div className="mx-auto mt-6 h-px w-24 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-40" />
         </header>
 
-        <div className="mb-6 flex gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Add an item..."
-            className="flex-1 rounded-lg border border-zinc-300 px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder-zinc-500"
-            autoFocus
-          />
-          <button
-            onClick={addItem}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Add
-          </button>
+        {/* Item input area */}
+        <div className="mb-8">
+          <div className="flex gap-3">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Add an item (e.g., milk, bread...)"
+              className="flex-1 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-5 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--color-neutral-400)] shadow-brand-md transition-all duration-150 ease-out focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 dark:border-[var(--color-neutral-400)] dark:placeholder-[var(--color-neutral-500)]"
+              autoFocus
+            />
+            <button
+              onClick={addItem}
+              className="rounded-xl bg-[var(--color-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-brand-md transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] hover:shadow-brand-lg active:scale-[0.98] active:bg-[var(--color-primary-active)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+            >
+              Add
+            </button>
+          </div>
+          {/* Keyboard shortcut hint */}
+          <p className="mt-2.5 text-center text-sm text-[var(--color-neutral-400)]">
+            Press <span className="font-medium text-[var(--color-neutral-500)]">⏎</span> to add
+          </p>
         </div>
 
         {items.length > 0 && (
