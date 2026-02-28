@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 
 const LOCAL_STORAGE_KEY = "grocery-list";
 import type { GroceryItem } from "@/lib/types";
@@ -23,12 +23,33 @@ export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
   const [categorizingItems, setCategorizingItems] = useState<Set<string>>(new Set());
+  const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
+  const [newItems, setNewItems] = useState<Set<string>>(new Set());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Save items to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
   }, [items]);
+
+  // Mark initial load complete after first render
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialLoad(false);
+    }, 500); // Wait for staggered animations to complete
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Clear new item animation flag after animation completes
+  useEffect(() => {
+    if (newItems.size > 0) {
+      const timer = setTimeout(() => {
+        setNewItems(new Set());
+      }, 150); // Match animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [newItems]);
 
   const categorizeItem = async (itemId: string, itemName: string) => {
     // Mark item as being categorized
@@ -73,6 +94,7 @@ export default function Home() {
     };
 
     setItems((prev) => [...prev, newItem]);
+    setNewItems((prev) => new Set(prev).add(newItem.id));
     setInputValue("");
     inputRef.current?.focus();
 
@@ -94,9 +116,20 @@ export default function Home() {
     );
   };
 
-  const removeItem = (itemId: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
-  };
+  const removeItem = useCallback((itemId: string) => {
+    // Add to removing set to trigger fade-out animation
+    setRemovingItems((prev) => new Set(prev).add(itemId));
+
+    // Wait for animation to complete before actually removing
+    setTimeout(() => {
+      setItems((prev) => prev.filter((item) => item.id !== itemId));
+      setRemovingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 150); // Match animation duration
+  }, []);
 
   const clearList = () => {
     if (window.confirm("Clear all items?")) {
@@ -259,10 +292,10 @@ export default function Home() {
         )}
 
         <div className="space-y-5">
-          {groupedItems.map(({ section, items }) => (
+          {groupedItems.map(({ section, items }, index) => (
             <div
               key={section.key}
-              className="rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-brand-md transition-all duration-150 ease-out"
+              className={`rounded-2xl border border-[var(--card-border)] bg-[var(--card-bg)] p-5 shadow-brand-md transition-all duration-150 ease-out ${isInitialLoad ? `animate-slide-up stagger-${Math.min(index + 1, 8)}` : ""}`}
             >
               {/* Section header with brand color accent */}
               <div className="mb-4 flex items-center gap-3">
@@ -275,10 +308,12 @@ export default function Home() {
               <div className="space-y-1.5">
                 {items.map((item) => {
                   const isCategorizing = categorizingItems.has(item.id);
+                  const isRemoving = removingItems.has(item.id);
+                  const isNew = newItems.has(item.id);
                   return (
                   <div
                     key={item.id}
-                    className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""}`}
+                    className={`group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)] ${isCategorizing ? "animate-shimmer bg-gradient-to-r from-[var(--color-primary-lightest)] via-[var(--color-primary-lighter)] to-[var(--color-primary-lightest)] bg-[length:200%_100%]" : ""} ${isNew ? "animate-fade-in" : ""} ${isRemoving ? "animate-fade-out" : ""}`}
                   >
                     {/* Custom styled checkbox */}
                     <button
