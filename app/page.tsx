@@ -196,30 +196,61 @@ export default function Home() {
                 </h2>
               </div>
               {/* Items list */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {items.map((item) => (
                   <div
                     key={item.id}
-                    className="group flex items-center gap-3 rounded-xl px-4 py-3 transition-colors duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-neutral-200)]"
+                    className="group flex items-center gap-4 rounded-xl px-4 py-3 transition-all duration-150 ease-out hover:bg-[var(--color-primary-lightest)] dark:hover:bg-[var(--color-primary-lightest)]"
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.checked}
-                      onChange={() => toggleChecked(item.id)}
-                      className="h-5 w-5 rounded-md border-2 border-[var(--color-neutral-300)] text-[var(--color-primary)] transition-colors duration-150 focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-0 dark:border-[var(--color-neutral-500)]"
-                    />
-                    <span
-                      className={`flex-1 text-[var(--foreground)] transition-all duration-200 ${
-                        item.checked ? "opacity-50" : ""
+                    {/* Custom styled checkbox */}
+                    <button
+                      onClick={() => toggleChecked(item.id)}
+                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 transition-all duration-150 ease-out focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 ${
+                        item.checked
+                          ? "border-[var(--color-primary)] bg-[var(--color-primary)]"
+                          : "border-[var(--color-neutral-300)] bg-transparent hover:border-[var(--color-primary)] dark:border-[var(--color-neutral-500)]"
                       }`}
-                      style={item.checked ? { textDecoration: "line-through", textDecorationColor: "var(--color-neutral-400)" } : {}}
+                      aria-label={item.checked ? "Mark as not purchased" : "Mark as purchased"}
+                    >
+                      {/* Checkmark icon */}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`text-white transition-all duration-200 ease-out ${
+                          item.checked ? "scale-100 opacity-100" : "scale-50 opacity-0"
+                        }`}
+                      >
+                        <path
+                          d="M2.5 6L5 8.5L9.5 4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    {/* Item name with animated strikethrough */}
+                    <span
+                      className={`relative flex-1 text-[var(--foreground)] transition-all duration-200 ${
+                        item.checked ? "text-[var(--color-neutral-400)]" : ""
+                      }`}
                     >
                       {item.name}
+                      {/* Animated strikethrough line */}
+                      <span
+                        className={`pointer-events-none absolute left-0 top-1/2 h-px bg-[var(--color-neutral-400)] transition-all duration-200 ease-out ${
+                          item.checked ? "w-full" : "w-0"
+                        }`}
+                      />
                     </span>
+                    {/* Remove button - appears on hover */}
                     <button
                       onClick={() => removeItem(item.id)}
-                      className="opacity-0 text-[var(--color-neutral-400)] transition-all duration-150 hover:text-[var(--color-error)] group-hover:opacity-100"
-                      aria-label="Remove item"
+                      className="flex-shrink-0 rounded-lg p-1.5 opacity-0 text-[var(--color-neutral-400)] transition-all duration-150 ease-out hover:bg-[var(--color-error)]/10 hover:text-[var(--color-error)] group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-error)]/30"
+                      aria-label={`Remove ${item.name}`}
                     >
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M4 4L12 12M12 4L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
