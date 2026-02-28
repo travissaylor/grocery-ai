@@ -63,6 +63,10 @@ export default function Home() {
     );
   };
 
+  const removeItem = (itemId: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== itemId));
+  };
+
   // Group items by section, maintaining the order defined in SECTIONS
   // and the order items were added within each section
   const groupedItems = useMemo(() => {
@@ -129,7 +133,7 @@ export default function Home() {
                       className="h-5 w-5 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span
-                      className={`text-zinc-900 dark:text-zinc-50 ${
+                      className={`flex-1 text-zinc-900 dark:text-zinc-50 ${
                         item.checked
                           ? "text-decoration-line opacity-50"
                           : ""
@@ -138,6 +142,13 @@ export default function Home() {
                     >
                       {item.name}
                     </span>
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+                      aria-label="Remove item"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
               </div>
