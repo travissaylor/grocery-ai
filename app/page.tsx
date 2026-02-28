@@ -19,6 +19,43 @@ function loadItemsFromStorage(): GroceryItem[] {
   return [];
 }
 
+// Register service worker for PWA offline support (production only)
+function registerServiceWorker() {
+  if (typeof window === "undefined") return;
+  if (!("serviceWorker" in navigator)) return;
+  if (process.env.NODE_ENV !== "production") return;
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        console.log("Service Worker registered with scope:", registration.scope);
+
+        // Handle updates
+        registration.onupdatefound = () => {
+          const installingWorker = registration.installing;
+          if (!installingWorker) return;
+
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === "installed") {
+              if (navigator.serviceWorker.controller) {
+                console.log("Service Worker updated and ready");
+              } else {
+                console.log("Service Worker installed for the first time");
+              }
+            }
+          };
+        };
+      })
+      .catch((error) => {
+        console.error("Service Worker registration failed:", error);
+      });
+  });
+}
+
+// Initialize service worker registration
+registerServiceWorker();
+
 export default function Home() {
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
