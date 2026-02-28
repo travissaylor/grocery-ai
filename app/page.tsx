@@ -115,11 +115,37 @@ export default function Home() {
   }, [items]);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="min-h-screen bg-[var(--background)]">
       <main className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="mb-6 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-          Grocery List
-        </h1>
+        {/* Header with brand identity */}
+        <header className="mb-10 text-center">
+          <div className="mb-4 flex items-center justify-center gap-3">
+            {/* Brand icon - abstract geometric shape */}
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-accent)] shadow-brand-md">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="text-white"
+              >
+                <rect x="2" y="2" width="6" height="6" rx="1" fill="currentColor" opacity="0.9" />
+                <rect x="12" y="2" width="6" height="6" rx="1" fill="currentColor" opacity="0.7" />
+                <rect x="2" y="12" width="6" height="6" rx="1" fill="currentColor" opacity="0.7" />
+                <rect x="12" y="12" width="6" height="6" rx="1" fill="currentColor" opacity="0.9" />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">
+              Grocery AI
+            </h1>
+          </div>
+          <p className="text-base text-[var(--color-neutral-500)]">
+            Smart shopping lists
+          </p>
+          {/* Gradient accent line */}
+          <div className="mx-auto mt-6 h-px w-24 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-40" />
+        </header>
 
         <div className="mb-6 flex gap-2">
           <input
