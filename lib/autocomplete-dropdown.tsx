@@ -7,6 +7,7 @@ type AutocompleteDropdownProps = {
   inputValue: string;
   frequency: ItemFrequency;
   highlightedIndex: number;
+  isOpen: boolean;
   onSelect: (suggestion: string) => void;
   onHighlight: (index: number) => void;
 };
@@ -15,6 +16,7 @@ export function AutocompleteDropdown({
   inputValue,
   frequency,
   highlightedIndex,
+  isOpen,
   onSelect,
   onHighlight,
 }: AutocompleteDropdownProps) {
@@ -23,8 +25,8 @@ export function AutocompleteDropdown({
     [inputValue, frequency]
   );
 
-  // Don't show dropdown if no suggestions
-  if (suggestions.length === 0) {
+  // Don't show dropdown if closed or no suggestions
+  if (!isOpen || suggestions.length === 0) {
     return null;
   }
 

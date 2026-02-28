@@ -115,7 +115,9 @@ export default function Home() {
   const [isRetryingPending, setIsRetryingPending] = useState(false);
   const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(loadItemFrequency);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
 
   // Save items to localStorage whenever they change
@@ -145,6 +147,22 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+        setHighlightedIndex(-1);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Retry pending categorizations when network comes back online
   useEffect(() => {
@@ -251,8 +269,9 @@ export default function Home() {
     setItemFrequency(newFrequency);
     saveItemFrequency(newFrequency);
 
-    // Reset highlighted index
+    // Reset highlighted index and close dropdown
     setHighlightedIndex(-1);
+    setIsDropdownOpen(false);
 
     inputRef.current?.focus();
 
@@ -287,6 +306,7 @@ export default function Home() {
       }
     } else if (e.key === "Escape") {
       setHighlightedIndex(-1);
+      setIsDropdownOpen(false);
     }
   };
 
@@ -422,7 +442,7 @@ export default function Home() {
         {/* Item input area */}
         <div className="mb-8">
           <div className="flex gap-3">
-            <div className="relative flex-1">
+            <div ref={containerRef} className="relative flex-1">
               <input
                 ref={inputRef}
                 type="text"
@@ -430,6 +450,24 @@ export default function Home() {
                 onChange={(e) => {
                   setInputValue(e.target.value);
                   setHighlightedIndex(-1); // Reset highlight when input changes
+                  setIsDropdownOpen(true); // Open dropdown when typing
+                }}
+                onFocus={() => {
+                  // Reopen dropdown on focus if input has matching content
+                  if (inputValue.length >= 2) {
+                    setIsDropdownOpen(true);
+                  }
+                }}
+                onBlur={(e) => {
+                  // Close dropdown if focus leaves the container (e.g., tabbing away)
+                  // But keep open if clicking on a suggestion (relatedTarget is in container)
+                  if (
+                    !containerRef.current ||
+                    !containerRef.current.contains(e.relatedTarget as Node)
+                  ) {
+                    setIsDropdownOpen(false);
+                    setHighlightedIndex(-1);
+                  }
                 }}
                 onKeyDown={handleKeyDown}
                 placeholder="Add an item (e.g., milk, bread...)"
@@ -440,6 +478,7 @@ export default function Home() {
                 inputValue={inputValue}
                 frequency={itemFrequency}
                 highlightedIndex={highlightedIndex}
+                isOpen={isDropdownOpen}
                 onSelect={handleSuggestionSelect}
                 onHighlight={handleHighlightChange}
               />
