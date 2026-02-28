@@ -105,7 +105,7 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
-  const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
+  const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
 
@@ -137,16 +137,16 @@ export default function Home() {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
 
-  // Auto-dismiss toast after 5 seconds
+  // Auto-dismiss toast after 5 seconds (resets on new deletions)
   useEffect(() => {
-    if (!pendingDeletion) return;
+    if (pendingDeletions.length === 0) return;
 
     const timer = setTimeout(() => {
-      setPendingDeletion(null);
+      setPendingDeletions([]);
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, [pendingDeletion]);
+  }, [pendingDeletions.length]);
 
   // Retry pending categorizations when network comes back online
   useEffect(() => {
@@ -279,8 +279,8 @@ export default function Home() {
         const item = prevItems[itemIndex];
 
         if (item) {
-          // Store for potential undo
-          setPendingDeletion({ item, originalIndex: itemIndex });
+          // Append to pending deletions for potential undo
+          setPendingDeletions((prev) => [...prev, { item, originalIndex: itemIndex }]);
         }
 
         return prevItems.filter((i) => i.id !== itemId);
@@ -296,9 +296,11 @@ export default function Home() {
   }, []);
 
   const undoDeletion = useCallback(() => {
-    if (!pendingDeletion) return;
+    if (pendingDeletions.length === 0) return;
 
-    const { item, originalIndex } = pendingDeletion;
+    // Get the most recently deleted item (last in array)
+    const mostRecent = pendingDeletions[pendingDeletions.length - 1];
+    const { item, originalIndex } = mostRecent;
 
     // Restore item to its original position
     setItems((prev) => {
@@ -312,9 +314,9 @@ export default function Home() {
     // Trigger fade-in animation for the restored item
     setNewItems((prev) => new Set(prev).add(item.id));
 
-    // Clear pending deletion
-    setPendingDeletion(null);
-  }, [pendingDeletion]);
+    // Remove only the undone item from pending deletions
+    setPendingDeletions((prev) => prev.slice(0, -1));
+  }, [pendingDeletions]);
 
   const clearList = () => {
     if (window.confirm("Clear all items?")) {
@@ -622,13 +624,17 @@ export default function Home() {
       </main>
 
       {/* Undo toast */}
-      {pendingDeletion && (
+      {pendingDeletions.length > 0 && (
         <div
           role="status"
           aria-live="polite"
           className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
         >
-          <span className="text-sm text-[var(--foreground)]">Item deleted</span>
+          <span className="text-sm text-[var(--foreground)]">
+            {pendingDeletions.length === 1
+              ? "Item deleted"
+              : `${pendingDeletions.length} items deleted`}
+          </span>
           <button
             onClick={undoDeletion}
             className="rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-sm font-medium text-white transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50"
