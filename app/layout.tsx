@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Grocery AI - Smart Shopping Lists",
   description: "AI-powered grocery list that automatically organizes items by store section",
+  manifest: "/manifest.json",
   openGraph: {
     title: "Grocery AI - Smart Shopping Lists",
     description: "AI-powered grocery list that automatically organizes items by store section",
