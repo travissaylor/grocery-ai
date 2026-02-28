@@ -1,8 +1,86 @@
 @import "tailwindcss";
 
 :root {
+  /* Background colors */
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
+
+  /* Primary colors - Indigo */
+  --color-primary: #4f46e5; /* indigo-600 */
+  --color-primary-hover: #6366f1; /* indigo-500 */
+  --color-primary-active: #4338ca; /* indigo-700 */
+  --color-primary-light: #e0e7ff; /* indigo-200 */
+  --color-primary-lighter: #eef2ff; /* indigo-100 */
+  --color-primary-lightest: #f5f3ff; /* indigo-50 */
+
+  /* Accent color - for hover states */
+  --color-accent: #818cf8; /* indigo-400 */
+
+  /* Secondary colors - Indigo variations */
+  --color-secondary: #c7d2fe; /* indigo-300 */
+  --color-secondary-light: #e0e7ff; /* indigo-200 */
+
+  /* Neutral colors - Slate palette */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1e293b;
+  --color-neutral-900: #0f172a;
+  --color-neutral-950: #020617;
+
+  /* Semantic colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Spacing scale (4px base unit) */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem; /* 4px */
+  --spacing-2: 0.5rem; /* 8px */
+  --spacing-3: 0.75rem; /* 12px */
+  --spacing-4: 1rem; /* 16px */
+  --spacing-5: 1.25rem; /* 20px */
+  --spacing-6: 1.5rem; /* 24px */
+  --spacing-8: 2rem; /* 32px */
+  --spacing-10: 2.5rem; /* 40px */
+  --spacing-12: 3rem; /* 48px */
+  --spacing-16: 4rem; /* 64px */
+  --spacing-20: 5rem; /* 80px */
+  --spacing-24: 6rem; /* 96px */
+
+  /* Border radius */
+  --radius-sm: 0.25rem; /* 4px */
+  --radius-md: 0.375rem; /* 6px */
+  --radius-lg: 0.5rem; /* 8px */
+  --radius-xl: 0.75rem; /* 12px */
+  --radius-2xl: 1rem; /* 16px */
+  --radius-full: 9999px;
+
+  /* Shadow tokens (with indigo tint) */
+  --shadow-sm: 0 1px 2px 0 rgb(79 70 229 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(79 70 229 / 0.1), 0 2px 4px -2px rgb(79 70 229 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(79 70 229 / 0.1), 0 4px 6px -4px rgb(79 70 229 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(79 70 229 / 0.1), 0 8px 10px -6px rgb(79 70 229 / 0.1);
+
+  /* Transition durations */
+  --transition-fast: 150ms;
+  --transition-normal: 200ms;
+  --transition-slow: 300ms;
+
+  /* Card backgrounds */
+  --card-bg: #ffffff;
+  --card-border: var(--color-neutral-200);
+
+  /* Input styling */
+  --input-bg: #ffffff;
+  --input-border: var(--color-neutral-300);
+  --input-focus-ring: var(--color-primary);
 }
 
 @theme inline {
@@ -10,17 +88,117 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Map custom colors to Tailwind */
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-active: var(--color-primary-active);
+  --color-primary-light: var(--color-primary-light);
+  --color-primary-lighter: var(--color-primary-lighter);
+  --color-primary-lightest: var(--color-primary-lightest);
+  --color-accent: var(--color-accent);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Dark mode backgrounds */
+    --background: #0f172a; /* slate-900 */
+    --foreground: #f1f5f9; /* slate-100 */
+
+    /* Primary colors - brighter for dark mode contrast */
+    --color-primary: #818cf8; /* indigo-400 */
+    --color-primary-hover: #a5b4fc; /* indigo-300 */
+    --color-primary-active: #6366f1; /* indigo-500 */
+    --color-primary-light: #312e81; /* indigo-900 */
+    --color-primary-lighter: #3730a3; /* indigo-800 */
+    --color-primary-lightest: #1e1b4b; /* indigo-950 */
+
+    /* Accent color */
+    --color-accent: #a5b4fc; /* indigo-300 */
+
+    /* Secondary colors */
+    --color-secondary: #4f46e5; /* indigo-600 */
+    --color-secondary-light: #6366f1; /* indigo-500 */
+
+    /* Neutral colors adjusted for dark mode */
+    --color-neutral-50: #020617;
+    --color-neutral-100: #0f172a;
+    --color-neutral-200: #1e293b;
+    --color-neutral-300: #334155;
+    --color-neutral-400: #475569;
+    --color-neutral-500: #64748b;
+    --color-neutral-600: #94a3b8;
+    --color-neutral-700: #cbd5e1;
+    --color-neutral-800: #e2e8f0;
+    --color-neutral-900: #f1f5f9;
+    --color-neutral-950: #f8fafc;
+
+    /* Shadows with more visibility in dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+
+    /* Card backgrounds for dark mode */
+    --card-bg: #1e293b; /* slate-800 */
+    --card-border: var(--color-neutral-300);
+
+    /* Input styling for dark mode */
+    --input-bg: #0f172a; /* slate-900 */
+    --input-border: var(--color-neutral-400);
+    --input-focus-ring: var(--color-primary);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Utility classes for the design system */
+.shadow-brand-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-brand-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-brand-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+.shadow-brand-xl {
+  box-shadow: var(--shadow-xl);
+}
+
+/* Focus ring utility */
+.focus-ring {
+  outline: none;
+  transition: box-shadow var(--transition-fast) ease;
+}
+
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgb(79 70 229 / 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .focus-ring:focus {
+    box-shadow: 0 0 0 3px rgb(129 140 248 / 0.3);
+  }
+}
+
+/* Smooth transitions utility */
+.transition-brand {
+  transition-duration: var(--transition-fast);
+  transition-timing-function: ease-out;
+}
+
+/* Card styling utility */
+.card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
