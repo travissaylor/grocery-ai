@@ -41,6 +41,65 @@ export function incrementItemFrequency(
   return newFrequency;
 }
 
+export function getSuggestions(
+  input: string,
+  frequency: ItemFrequency
+): string[] {
+  const normalizedInput = input.toLowerCase().trim();
+
+  // Return empty array if input length < 2 characters
+  if (normalizedInput.length < 2) {
+    return [];
+  }
+
+  // Build set of all unique item names from common items and user history
+  const allItems = new Set<string>();
+
+  // Add common items (preserve original case for display)
+  for (const item of COMMON_ITEMS) {
+    allItems.add(item.name);
+  }
+
+  // Add user history items (keys are stored lowercase, but we need original case)
+  // Since frequency keys are lowercase, we need to check common items for original case
+  // For items not in common items, we'll use the lowercase version
+  const commonItemsLowerToOriginal = new Map<string, string>();
+  for (const item of COMMON_ITEMS) {
+    commonItemsLowerToOriginal.set(item.name.toLowerCase(), item.name);
+  }
+
+  for (const itemName of Object.keys(frequency)) {
+    // Use original case if it's a common item, otherwise use as-is (lowercase)
+    const originalCase = commonItemsLowerToOriginal.get(itemName);
+    if (originalCase) {
+      allItems.add(originalCase);
+    } else {
+      // For custom items, capitalize first letter for display
+      const capitalized = itemName.charAt(0).toUpperCase() + itemName.slice(1);
+      allItems.add(capitalized);
+    }
+  }
+
+  // Filter items that start with input (case-insensitive)
+  const matchingItems = Array.from(allItems).filter((item) =>
+    item.toLowerCase().startsWith(normalizedInput)
+  );
+
+  // Sort by: (1) frequency descending, (2) alphabetically for ties
+  matchingItems.sort((a, b) => {
+    const freqA = frequency[a.toLowerCase()] ?? 0;
+    const freqB = frequency[b.toLowerCase()] ?? 0;
+
+    if (freqB !== freqA) {
+      return freqB - freqA; // Higher frequency first
+    }
+    return a.localeCompare(b); // Alphabetical for ties
+  });
+
+  // Return max 8 suggestions
+  return matchingItems.slice(0, 8);
+}
+
 export const COMMON_ITEMS: AutocompleteItem[] = [
   // Produce
   { name: "Apple", category: "produce" },
