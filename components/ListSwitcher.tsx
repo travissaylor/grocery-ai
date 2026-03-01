@@ -11,6 +11,7 @@ type ListSwitcherProps = {
   setActiveList: (id: string | null) => void;
   onCreateNewList: () => void;
   onEditList: () => void;
+  onArchiveList: () => void;
   onViewArchived: () => void;
 };
 
@@ -39,6 +40,7 @@ export function ListSwitcher({
   setActiveList,
   onCreateNewList,
   onEditList,
+  onArchiveList,
   onViewArchived,
 }: ListSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -170,6 +172,22 @@ export function ListSwitcher({
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span>Edit list</span>
+            </button>
+          )}
+
+          {/* Archive active list option */}
+          {activeList && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onArchiveList();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--color-neutral-600)] transition-colors duration-150 hover:bg-[var(--color-neutral-100)] dark:text-[var(--color-neutral-400)] dark:hover:bg-[var(--color-neutral-200)]"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 10H3M21 6H3M21 14H3M21 18H3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>Archive list</span>
             </button>
           )}
 

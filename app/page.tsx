@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore
 import { useLists } from "@/lib/useLists";
 import { ListSwitcher } from "@/components/ListSwitcher";
 import { ListModal } from "@/components/ListModal";
+import { ArchivedListsModal } from "@/components/ArchivedListsModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -109,11 +110,12 @@ registerServiceWorker();
 
 export default function Home() {
   // List management hook
-  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList } = useLists();
+  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList, archiveList, restoreList } = useLists();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalKey, setCreateModalKey] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalKey, setEditModalKey] = useState(0);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
 
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
@@ -478,8 +480,13 @@ export default function Home() {
                 setEditModalKey((k) => k + 1);
                 setIsEditModalOpen(true);
               }}
+              onArchiveList={() => {
+                if (activeListId) {
+                  archiveList(activeListId);
+                }
+              }}
               onViewArchived={() => {
-                // Placeholder - will be implemented in US-006
+                setIsArchivedModalOpen(true);
               }}
             />
           </div>
@@ -800,6 +807,19 @@ export default function Home() {
         listToEdit={activeList}
         onUpdateList={(id, updates) => {
           updateList(id, updates);
+        }}
+        onDeleteList={(id) => {
+          deleteList(id);
+        }}
+      />
+
+      {/* Archived lists modal */}
+      <ArchivedListsModal
+        isOpen={isArchivedModalOpen}
+        onClose={() => setIsArchivedModalOpen(false)}
+        archivedLists={lists.filter((list) => list.isArchived)}
+        onRestoreList={(id) => {
+          restoreList(id);
         }}
         onDeleteList={(id) => {
           deleteList(id);
