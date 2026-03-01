@@ -5,6 +5,7 @@ import { useLists } from "@/lib/useLists";
 import { ListSwitcher } from "@/components/ListSwitcher";
 import { ListModal } from "@/components/ListModal";
 import { ArchivedListsModal } from "@/components/ArchivedListsModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -103,6 +104,7 @@ export default function Home() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalKey, setEditModalKey] = useState(0);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   const [items, setItems] = useState<GroceryItem[]>(() => activeList?.items ?? []);
   const [inputValue, setInputValue] = useState("");
@@ -413,9 +415,12 @@ export default function Home() {
   }, [pendingDeletions]);
 
   const clearList = () => {
-    if (window.confirm("Clear all items?")) {
-      setItems([]);
-    }
+    setIsClearConfirmOpen(true);
+  };
+
+  const confirmClearList = () => {
+    setItems([]);
+    setIsClearConfirmOpen(false);
   };
 
   // Group items by section, maintaining the order defined in SECTIONS
@@ -835,6 +840,17 @@ export default function Home() {
         onDeleteList={(id) => {
           deleteList(id);
         }}
+      />
+
+      {/* Clear list confirmation modal */}
+      <ConfirmModal
+        isOpen={isClearConfirmOpen}
+        onConfirm={confirmClearList}
+        onCancel={() => setIsClearConfirmOpen(false)}
+        title="Clear List"
+        message="Remove all items from this list?"
+        confirmLabel="Clear List"
+        variant="danger"
       />
     </div>
   );
