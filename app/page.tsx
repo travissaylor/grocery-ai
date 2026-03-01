@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useLists } from "@/lib/useLists";
+import { ListSwitcher } from "@/components/ListSwitcher";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -105,6 +107,9 @@ function registerServiceWorker() {
 registerServiceWorker();
 
 export default function Home() {
+  // List management hook
+  const { lists, activeListId, activeList, setActiveList } = useLists();
+
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
   const [categorizingItems, setCategorizingItems] = useState<Set<string>>(new Set());
@@ -452,6 +457,22 @@ export default function Home() {
           </p>
           {/* Gradient accent line */}
           <div className="mx-auto mt-6 h-px w-24 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-40" />
+
+          {/* List switcher dropdown */}
+          <div className="mt-4 flex justify-center">
+            <ListSwitcher
+              lists={lists}
+              activeListId={activeListId}
+              activeList={activeList}
+              setActiveList={setActiveList}
+              onCreateNewList={() => {
+                // Placeholder - will be implemented in US-004
+              }}
+              onViewArchived={() => {
+                // Placeholder - will be implemented in US-006
+              }}
+            />
+          </div>
         </header>
 
         {/* Offline status indicator */}
