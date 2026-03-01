@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ section: validSectionKey });
   } catch {
-    // On any error (network, rate limit, etc.), return "other"
-    return NextResponse.json({ section: "other" as SectionKey });
+    // On any error (network, rate limit, etc.), return "other" with error flag
+    return NextResponse.json({ section: "other" as SectionKey, error: true });
   }
 }

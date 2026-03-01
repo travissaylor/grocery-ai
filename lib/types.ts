@@ -6,6 +6,7 @@ export type GroceryItem = {
   section: SectionKey;
   checked: boolean;
   pendingCategorization?: boolean;
+  categorizationFailed?: boolean;
 };
 
 export type PendingCategorization = {

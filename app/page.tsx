@@ -122,6 +122,8 @@ export default function Home() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [categorizationFailedMessage, setCategorizationFailedMessage] = useState<string | null>(null);
+  const [sectionPickerItemId, setSectionPickerItemId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -206,6 +208,15 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [duplicateWarning]);
 
+  // Auto-dismiss categorization failed message after 5 seconds
+  useEffect(() => {
+    if (!categorizationFailedMessage) return;
+    const timer = setTimeout(() => {
+      setCategorizationFailedMessage(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [categorizationFailedMessage]);
+
   // Retry pending categorizations when network comes back online
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -239,11 +250,21 @@ export default function Home() {
       const data = await response.json();
       const section: SectionKey = data.section || FALLBACK_SECTION_KEY;
 
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === itemId ? { ...item, section, pendingCategorization: false } : item
-        )
-      );
+      if (data.error) {
+        // API returned an error flag — categorization failed
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, section, pendingCategorization: false, categorizationFailed: true } : item
+          )
+        );
+        setCategorizationFailedMessage(`Couldn't auto-categorize "${itemName}" — tap the warning icon to pick a section`);
+      } else {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, section, pendingCategorization: false, categorizationFailed: false } : item
+          )
+        );
+      }
 
       // Remove from pending categorizations on success
       setPendingCategorizations((prev) =>
@@ -264,8 +285,15 @@ export default function Home() {
           if (prev.some((p) => p.itemId === itemId)) return prev;
           return [...prev, { itemId, itemName }];
         });
+      } else {
+        // Non-network error — mark as failed categorization
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, categorizationFailed: true } : item
+          )
+        );
+        setCategorizationFailedMessage(`Couldn't auto-categorize "${itemName}" — tap the warning icon to pick a section`);
       }
-      // On other errors, item remains in "other" section
     } finally {
       // Remove from categorizing set
       setCategorizingItems((prev) => {
@@ -289,6 +317,15 @@ export default function Home() {
     }
 
     setIsRetryingPending(false);
+  };
+
+  const assignSection = (itemId: string, section: SectionKey) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, section, categorizationFailed: false } : item
+      )
+    );
+    setSectionPickerItemId(null);
   };
 
   const addItem = (suggestion?: string) => {
@@ -628,6 +665,12 @@ export default function Home() {
               {duplicateWarning}
             </p>
           )}
+          {/* Categorization failed message */}
+          {categorizationFailedMessage && (
+            <p className="mt-2 text-center text-sm text-[var(--color-warning, #d97706)]">
+              {categorizationFailedMessage}
+            </p>
+          )}
         </div>
 
         {items.length > 0 && (
@@ -790,6 +833,37 @@ export default function Home() {
                           <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                         <span>waiting for connection</span>
+                      </div>
+                    )}
+                    {/* Failed categorization indicator */}
+                    {item.categorizationFailed && !isCategorizing && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setSectionPickerItemId(sectionPickerItemId === item.id ? null : item.id)}
+                          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-[var(--color-warning, #d97706)] transition-all duration-150 ease-out hover:bg-[var(--color-warning, #d97706)]/10"
+                          aria-label="Categorization failed — click to pick a section"
+                          title="Categorization failed — click to pick a section"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        {/* Section picker dropdown */}
+                        {sectionPickerItemId === item.id && (
+                          <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-48 overflow-y-auto rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-brand-lg">
+                            {SECTIONS.map((s) => (
+                              <button
+                                key={s.key}
+                                onClick={() => assignSection(item.id, s.key)}
+                                className={`w-full px-3 py-2 text-left text-sm transition-colors duration-100 hover:bg-[var(--color-primary-lightest)] ${item.section === s.key ? "font-medium text-[var(--color-primary)]" : "text-[var(--foreground)]"}`}
+                              >
+                                {s.displayName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     {/* Remove button - always visible for mobile accessibility */}
