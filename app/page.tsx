@@ -121,6 +121,7 @@ export default function Home() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -195,6 +196,15 @@ export default function Home() {
 
     return () => clearTimeout(timer);
   }, [pendingDeletions.length]);
+
+  // Auto-dismiss duplicate warning after 3 seconds
+  useEffect(() => {
+    if (!duplicateWarning) return;
+    const timer = setTimeout(() => {
+      setDuplicateWarning(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [duplicateWarning]);
 
   // Retry pending categorizations when network comes back online
   useEffect(() => {
@@ -284,6 +294,16 @@ export default function Home() {
   const addItem = (suggestion?: string) => {
     const trimmedValue = (suggestion ?? inputValue).trim();
     if (!trimmedValue) return;
+
+    // Check for duplicate among unchecked items
+    const normalizedName = trimmedValue.toLowerCase();
+    const duplicate = items.find(
+      (item) => !item.checked && item.name.trim().toLowerCase() === normalizedName
+    );
+    if (duplicate) {
+      setDuplicateWarning(`'${duplicate.name}' is already on your list`);
+      return;
+    }
 
     const newItem: GroceryItem = {
       id: crypto.randomUUID(),
@@ -558,6 +578,7 @@ export default function Home() {
                   setInputValue(e.target.value);
                   setHighlightedIndex(-1); // Reset highlight when input changes
                   setIsDropdownOpen(true); // Open dropdown when typing
+                  setDuplicateWarning(null); // Clear duplicate warning on input change
                 }}
                 onFocus={() => {
                   // Reopen dropdown on focus if input has matching content
@@ -601,6 +622,12 @@ export default function Home() {
           <p className="mt-2.5 text-center text-sm text-[var(--color-neutral-400)]">
             Press <span className="font-medium text-[var(--color-neutral-500)]">⏎</span> to add
           </p>
+          {/* Duplicate item warning */}
+          {duplicateWarning && (
+            <p className="mt-2 text-center text-sm text-[var(--color-error)]">
+              {duplicateWarning}
+            </p>
+          )}
         </div>
 
         {items.length > 0 && (
