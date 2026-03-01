@@ -802,7 +802,7 @@ export default function Home() {
 
       {/* Create list modal */}
       <ListModal
-        key={createModalKey}
+        key={`create-${createModalKey}`}
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateList={(name, icon, color) => {
@@ -812,7 +812,7 @@ export default function Home() {
 
       {/* Edit list modal */}
       <ListModal
-        key={editModalKey}
+        key={`edit-${editModalKey}`}
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         listToEdit={activeList}
