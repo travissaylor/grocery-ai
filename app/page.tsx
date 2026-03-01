@@ -3,6 +3,7 @@
 import { useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useLists } from "@/lib/useLists";
 import { ListSwitcher } from "@/components/ListSwitcher";
+import { ListModal } from "@/components/ListModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -108,7 +109,9 @@ registerServiceWorker();
 
 export default function Home() {
   // List management hook
-  const { lists, activeListId, activeList, setActiveList } = useLists();
+  const { lists, activeListId, activeList, setActiveList, createList } = useLists();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
 
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
@@ -466,7 +469,8 @@ export default function Home() {
               activeList={activeList}
               setActiveList={setActiveList}
               onCreateNewList={() => {
-                // Placeholder - will be implemented in US-004
+                setCreateModalKey((k) => k + 1);
+                setIsCreateModalOpen(true);
               }}
               onViewArchived={() => {
                 // Placeholder - will be implemented in US-006
@@ -771,6 +775,16 @@ export default function Home() {
           </button>
         </div>
       )}
+
+      {/* Create list modal */}
+      <ListModal
+        key={createModalKey}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreateList={(name, icon, color) => {
+          createList(name, icon, color);
+        }}
+      />
     </div>
   );
 }
