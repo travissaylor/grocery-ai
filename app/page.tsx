@@ -32,6 +32,7 @@ import {
   saveItemFrequency,
   incrementItemFrequency,
   getSuggestions,
+  aggregateItemFrequency,
   type ItemFrequency,
 } from "@/lib/autocomplete";
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
@@ -125,7 +126,10 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
-  const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(loadItemFrequency);
+  const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(() => {
+    // Initialize from localStorage, will be updated from lists via useEffect
+    return loadItemFrequency();
+  });
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
@@ -160,6 +164,13 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Aggregate item frequency from all lists (including archived)
+  // This makes autocomplete suggestions list-aware
+  useEffect(() => {
+    const aggregated = aggregateItemFrequency(lists);
+    setItemFrequency(aggregated);
+  }, [lists]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
