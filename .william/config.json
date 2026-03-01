@@ -1,0 +1,6 @@
+{
+  "projectName": "grocery-list-ai",
+  "setupCommands": [
+    "cp ~/projects/grocery-list-ai/.env ."
+  ]
+}
