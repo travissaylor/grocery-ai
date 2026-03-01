@@ -53,11 +53,17 @@ function getInitialStorage(): ListsStorage {
  * CRUD operations for lists.
  */
 export function useLists(): UseListsReturn {
-  const [storage, setStorage] = useState<ListsStorage>(getInitialStorage);
+  const [storage, setStorage] = useState<ListsStorage>({ lists: [], activeListId: null });
   const isLoaded = useRef(false);
 
-  // Mark as loaded after first render
+  // Load from localStorage after mount to avoid hydration mismatch.
+  // setState here is intentional: we must defer the localStorage read to avoid
+  // server/client divergence during SSR hydration.
   useEffect(() => {
+    const loaded = getInitialStorage();
+    if (loaded.lists.length > 0 || loaded.activeListId !== null) {
+      setStorage(loaded); // eslint-disable-line react-hooks/set-state-in-effect
+    }
     isLoaded.current = true;
   }, []);
 
