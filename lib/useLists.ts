@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { ShoppingList, ListsStorage, ListIcon, ListColor } from "./types";
+import type { ShoppingList, ListsStorage, ListIcon, ListColor, GroceryItem } from "./types";
 import {
   loadListsStorage,
   saveListsStorage,
@@ -16,6 +16,7 @@ export type UseListsReturn = {
   activeList: ShoppingList | null;
   createList: (name: string, icon?: ListIcon, color?: ListColor) => ShoppingList;
   updateList: (id: string, updates: Partial<Pick<ShoppingList, "name" | "icon" | "color">>) => void;
+  updateListItems: (id: string, items: import("./types").GroceryItem[]) => void;
   deleteList: (id: string) => void;
   archiveList: (id: string) => void;
   restoreList: (id: string) => void;
@@ -99,6 +100,21 @@ export function useLists(): UseListsReturn {
                 name: updates.name !== undefined ? updates.name.trim() : list.name,
                 updatedAt: new Date().toISOString(),
               }
+            : list
+        ),
+      }));
+    },
+    []
+  );
+
+  // Update items for a specific list
+  const updateListItems = useCallback(
+    (id: string, items: GroceryItem[]) => {
+      setStorage((prev) => ({
+        ...prev,
+        lists: prev.lists.map((list) =>
+          list.id === id
+            ? { ...list, items, updatedAt: new Date().toISOString() }
             : list
         ),
       }));
@@ -201,6 +217,7 @@ export function useLists(): UseListsReturn {
     activeList,
     createList,
     updateList,
+    updateListItems,
     deleteList,
     archiveList,
     restoreList,

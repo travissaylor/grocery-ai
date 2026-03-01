@@ -23,7 +23,6 @@ function useOnlineStatus(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
 import type { GroceryItem, PendingCategorization, PendingDeletion } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
@@ -36,19 +35,6 @@ import {
   type ItemFrequency,
 } from "@/lib/autocomplete";
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
-
-function loadItemsFromStorage(): GroceryItem[] {
-  if (typeof window === "undefined") return [];
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved) as GroceryItem[];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
 
 function loadPendingCategorizations(): PendingCategorization[] {
   if (typeof window === "undefined") return [];
@@ -111,14 +97,14 @@ registerServiceWorker();
 
 export default function Home() {
   // List management hook
-  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList, archiveList, restoreList, duplicateList } = useLists();
+  const { lists, activeListId, activeList, setActiveList, createList, updateList, updateListItems, deleteList, archiveList, restoreList, duplicateList } = useLists();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalKey, setCreateModalKey] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalKey, setEditModalKey] = useState(0);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
 
-  const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
+  const [items, setItems] = useState<GroceryItem[]>(() => activeList?.items ?? []);
   const [inputValue, setInputValue] = useState("");
   const [categorizingItems, setCategorizingItems] = useState<Set<string>>(new Set());
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
@@ -137,10 +123,19 @@ export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
 
-  // Save items to localStorage whenever they change
+  // Sync items from the active list when switching lists
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    setItems(activeList?.items ?? []);
+  }, [activeListId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist item changes back to the active list's storage
+  const activeListIdRef = useRef(activeListId);
+  activeListIdRef.current = activeListId;
+  useEffect(() => {
+    if (activeListIdRef.current) {
+      updateListItems(activeListIdRef.current, items);
+    }
+  }, [items, updateListItems]);
 
   // Mark initial load complete after first render
   useEffect(() => {
