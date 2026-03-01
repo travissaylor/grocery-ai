@@ -10,6 +10,7 @@ type ListSwitcherProps = {
   activeList: ShoppingList | null;
   setActiveList: (id: string | null) => void;
   onCreateNewList: () => void;
+  onEditList: () => void;
   onViewArchived: () => void;
 };
 
@@ -37,6 +38,7 @@ export function ListSwitcher({
   activeList,
   setActiveList,
   onCreateNewList,
+  onEditList,
   onViewArchived,
 }: ListSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -152,6 +154,23 @@ export function ListSwitcher({
           {/* Divider */}
           {nonArchivedLists.length > 0 && (
             <div className="my-2 h-px bg-[var(--color-neutral-200)] dark:bg-[var(--color-neutral-600)]" />
+          )}
+
+          {/* Edit active list option */}
+          {activeList && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onEditList();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--color-neutral-600)] transition-colors duration-150 hover:bg-[var(--color-neutral-100)] dark:text-[var(--color-neutral-400)] dark:hover:bg-[var(--color-neutral-200)]"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>Edit list</span>
+            </button>
           )}
 
           {/* Create new list option */}

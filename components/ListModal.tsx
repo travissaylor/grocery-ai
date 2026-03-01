@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { ListIcon, ListColor } from "@/lib/types";
+import type { ListIcon, ListColor, ShoppingList } from "@/lib/types";
 import { LIST_ICONS, LIST_COLORS, getListIcon, getListColor } from "@/lib/list-assets";
 
 type ListModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onCreateList: (name: string, icon: ListIcon, color: ListColor) => void;
+  onCreateList?: (name: string, icon: ListIcon, color: ListColor) => void;
+  onUpdateList?: (id: string, updates: { name: string; icon: ListIcon; color: ListColor }) => void;
+  onDeleteList?: (id: string) => void;
+  listToEdit?: ShoppingList | null;
 };
 
 // Icon component for rendering list icons
@@ -87,10 +90,11 @@ function ColorOption({
   );
 }
 
-export function ListModal({ isOpen, onClose, onCreateList }: ListModalProps) {
-  const [name, setName] = useState("");
-  const [selectedIcon, setSelectedIcon] = useState<ListIcon>(LIST_ICONS[0].key);
-  const [selectedColor, setSelectedColor] = useState<ListColor>(LIST_COLORS[0].key);
+export function ListModal({ isOpen, onClose, onCreateList, onUpdateList, onDeleteList, listToEdit }: ListModalProps) {
+  const isEditMode = !!listToEdit;
+  const [name, setName] = useState(listToEdit?.name ?? "");
+  const [selectedIcon, setSelectedIcon] = useState<ListIcon>(listToEdit?.icon ?? LIST_ICONS[0].key);
+  const [selectedColor, setSelectedColor] = useState<ListColor>(listToEdit?.color ?? LIST_COLORS[0].key);
   const modalRef = useRef<HTMLDivElement>(null);
 
   // Handle escape key to close modal
@@ -123,8 +127,20 @@ export function ListModal({ isOpen, onClose, onCreateList }: ListModalProps) {
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
-    onCreateList(trimmedName, selectedIcon, selectedColor);
+    if (isEditMode && listToEdit && onUpdateList) {
+      onUpdateList(listToEdit.id, { name: trimmedName, icon: selectedIcon, color: selectedColor });
+    } else if (!isEditMode && onCreateList) {
+      onCreateList(trimmedName, selectedIcon, selectedColor);
+    }
     onClose();
+  };
+
+  // Handle delete
+  const handleDelete = () => {
+    if (listToEdit && onDeleteList && window.confirm(`Permanently delete "${listToEdit.name}"? This cannot be undone.`)) {
+      onDeleteList(listToEdit.id);
+      onClose();
+    }
   };
 
   // Validate name (required, max 50 chars)
@@ -144,7 +160,7 @@ export function ListModal({ isOpen, onClose, onCreateList }: ListModalProps) {
         aria-labelledby="modal-title"
       >
         <h2 id="modal-title" className="mb-6 text-xl font-semibold text-[var(--foreground)]">
-          Create new list
+          {isEditMode ? "Edit list" : "Create new list"}
         </h2>
 
         <form onSubmit={handleSubmit}>
@@ -209,6 +225,16 @@ export function ListModal({ isOpen, onClose, onCreateList }: ListModalProps) {
 
           {/* Action buttons */}
           <div className="flex justify-end gap-3">
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-xl border border-[var(--color-error)] bg-transparent px-5 py-2.5 text-sm font-medium text-[var(--color-error)] transition-all duration-150 hover:bg-[var(--color-error)]/10"
+              >
+                Delete
+              </button>
+            )}
+            <div className="flex-1" />
             <button
               type="button"
               onClick={onClose}
@@ -221,7 +247,7 @@ export function ListModal({ isOpen, onClose, onCreateList }: ListModalProps) {
               disabled={!isValidName}
               className="rounded-xl bg-[var(--color-primary)] px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-[var(--color-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Create
+              {isEditMode ? "Save" : "Create"}
             </button>
           </div>
         </form>

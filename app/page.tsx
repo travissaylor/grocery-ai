@@ -109,9 +109,11 @@ registerServiceWorker();
 
 export default function Home() {
   // List management hook
-  const { lists, activeListId, activeList, setActiveList, createList } = useLists();
+  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList } = useLists();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalKey, setCreateModalKey] = useState(0);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalKey, setEditModalKey] = useState(0);
 
   const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
   const [inputValue, setInputValue] = useState("");
@@ -472,6 +474,10 @@ export default function Home() {
                 setCreateModalKey((k) => k + 1);
                 setIsCreateModalOpen(true);
               }}
+              onEditList={() => {
+                setEditModalKey((k) => k + 1);
+                setIsEditModalOpen(true);
+              }}
               onViewArchived={() => {
                 // Placeholder - will be implemented in US-006
               }}
@@ -783,6 +789,20 @@ export default function Home() {
         onClose={() => setIsCreateModalOpen(false)}
         onCreateList={(name, icon, color) => {
           createList(name, icon, color);
+        }}
+      />
+
+      {/* Edit list modal */}
+      <ListModal
+        key={editModalKey}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        listToEdit={activeList}
+        onUpdateList={(id, updates) => {
+          updateList(id, updates);
+        }}
+        onDeleteList={(id) => {
+          deleteList(id);
         }}
       />
     </div>
