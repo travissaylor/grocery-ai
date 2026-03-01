@@ -110,7 +110,7 @@ registerServiceWorker();
 
 export default function Home() {
   // List management hook
-  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList, archiveList, restoreList } = useLists();
+  const { lists, activeListId, activeList, setActiveList, createList, updateList, deleteList, archiveList, restoreList, duplicateList } = useLists();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createModalKey, setCreateModalKey] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -483,6 +483,11 @@ export default function Home() {
               onArchiveList={() => {
                 if (activeListId) {
                   archiveList(activeListId);
+                }
+              }}
+              onDuplicateList={() => {
+                if (activeListId) {
+                  duplicateList(activeListId);
                 }
               }}
               onViewArchived={() => {
