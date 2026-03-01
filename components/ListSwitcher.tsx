@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { ShoppingList, ListIcon, ListColor } from "@/lib/types";
 import { getListIcon, getListColor } from "@/lib/list-assets";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 type ListSwitcherProps = {
   lists: ShoppingList[];
@@ -46,6 +47,7 @@ export function ListSwitcher({
   onViewArchived,
 }: ListSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isArchiveConfirmOpen, setIsArchiveConfirmOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Get non-archived lists
@@ -182,7 +184,7 @@ export function ListSwitcher({
             <button
               onClick={() => {
                 setIsOpen(false);
-                onArchiveList();
+                setIsArchiveConfirmOpen(true);
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--color-neutral-600)] transition-colors duration-150 hover:bg-[var(--color-neutral-100)] dark:text-[var(--color-neutral-400)] dark:hover:bg-[var(--color-neutral-200)]"
             >
@@ -239,6 +241,19 @@ export function ListSwitcher({
           </button>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={isArchiveConfirmOpen}
+        onConfirm={() => {
+          setIsArchiveConfirmOpen(false);
+          onArchiveList();
+        }}
+        onCancel={() => setIsArchiveConfirmOpen(false)}
+        title="Archive List"
+        message={`Archive '${activeList?.name ?? ""}'? You can restore it later from archived lists.`}
+        confirmLabel="Archive"
+        cancelLabel="Cancel"
+      />
     </div>
   );
 }

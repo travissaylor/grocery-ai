@@ -5,6 +5,7 @@ import { useLists } from "@/lib/useLists";
 import { ListSwitcher } from "@/components/ListSwitcher";
 import { ListModal } from "@/components/ListModal";
 import { ArchivedListsModal } from "@/components/ArchivedListsModal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -103,6 +104,7 @@ export default function Home() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editModalKey, setEditModalKey] = useState(0);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
   const [items, setItems] = useState<GroceryItem[]>(() => activeList?.items ?? []);
   const [inputValue, setInputValue] = useState("");
@@ -119,6 +121,9 @@ export default function Home() {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [categorizationFailedMessage, setCategorizationFailedMessage] = useState<string | null>(null);
+  const [sectionPickerItemId, setSectionPickerItemId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -194,6 +199,24 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [pendingDeletions.length]);
 
+  // Auto-dismiss duplicate warning after 3 seconds
+  useEffect(() => {
+    if (!duplicateWarning) return;
+    const timer = setTimeout(() => {
+      setDuplicateWarning(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [duplicateWarning]);
+
+  // Auto-dismiss categorization failed message after 5 seconds
+  useEffect(() => {
+    if (!categorizationFailedMessage) return;
+    const timer = setTimeout(() => {
+      setCategorizationFailedMessage(null);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [categorizationFailedMessage]);
+
   // Retry pending categorizations when network comes back online
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -227,11 +250,21 @@ export default function Home() {
       const data = await response.json();
       const section: SectionKey = data.section || FALLBACK_SECTION_KEY;
 
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === itemId ? { ...item, section, pendingCategorization: false } : item
-        )
-      );
+      if (data.error) {
+        // API returned an error flag — categorization failed
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, section, pendingCategorization: false, categorizationFailed: true } : item
+          )
+        );
+        setCategorizationFailedMessage(`Couldn't auto-categorize "${itemName}" — tap the warning icon to pick a section`);
+      } else {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, section, pendingCategorization: false, categorizationFailed: false } : item
+          )
+        );
+      }
 
       // Remove from pending categorizations on success
       setPendingCategorizations((prev) =>
@@ -252,8 +285,15 @@ export default function Home() {
           if (prev.some((p) => p.itemId === itemId)) return prev;
           return [...prev, { itemId, itemName }];
         });
+      } else {
+        // Non-network error — mark as failed categorization
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === itemId ? { ...item, categorizationFailed: true } : item
+          )
+        );
+        setCategorizationFailedMessage(`Couldn't auto-categorize "${itemName}" — tap the warning icon to pick a section`);
       }
-      // On other errors, item remains in "other" section
     } finally {
       // Remove from categorizing set
       setCategorizingItems((prev) => {
@@ -279,9 +319,28 @@ export default function Home() {
     setIsRetryingPending(false);
   };
 
+  const assignSection = (itemId: string, section: SectionKey) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, section, categorizationFailed: false } : item
+      )
+    );
+    setSectionPickerItemId(null);
+  };
+
   const addItem = (suggestion?: string) => {
     const trimmedValue = (suggestion ?? inputValue).trim();
     if (!trimmedValue) return;
+
+    // Check for duplicate among unchecked items
+    const normalizedName = trimmedValue.toLowerCase();
+    const duplicate = items.find(
+      (item) => !item.checked && item.name.trim().toLowerCase() === normalizedName
+    );
+    if (duplicate) {
+      setDuplicateWarning(`'${duplicate.name}' is already on your list`);
+      return;
+    }
 
     const newItem: GroceryItem = {
       id: crypto.randomUUID(),
@@ -413,9 +472,12 @@ export default function Home() {
   }, [pendingDeletions]);
 
   const clearList = () => {
-    if (window.confirm("Clear all items?")) {
-      setItems([]);
-    }
+    setIsClearConfirmOpen(true);
+  };
+
+  const confirmClearList = () => {
+    setItems([]);
+    setIsClearConfirmOpen(false);
   };
 
   // Group items by section, maintaining the order defined in SECTIONS
@@ -553,6 +615,7 @@ export default function Home() {
                   setInputValue(e.target.value);
                   setHighlightedIndex(-1); // Reset highlight when input changes
                   setIsDropdownOpen(true); // Open dropdown when typing
+                  setDuplicateWarning(null); // Clear duplicate warning on input change
                 }}
                 onFocus={() => {
                   // Reopen dropdown on focus if input has matching content
@@ -596,6 +659,18 @@ export default function Home() {
           <p className="mt-2.5 text-center text-sm text-[var(--color-neutral-400)]">
             Press <span className="font-medium text-[var(--color-neutral-500)]">⏎</span> to add
           </p>
+          {/* Duplicate item warning */}
+          {duplicateWarning && (
+            <p className="mt-2 text-center text-sm text-[var(--color-error)]">
+              {duplicateWarning}
+            </p>
+          )}
+          {/* Categorization failed message */}
+          {categorizationFailedMessage && (
+            <p className="mt-2 text-center text-sm text-[var(--color-warning, #d97706)]">
+              {categorizationFailedMessage}
+            </p>
+          )}
         </div>
 
         {items.length > 0 && (
@@ -760,6 +835,37 @@ export default function Home() {
                         <span>waiting for connection</span>
                       </div>
                     )}
+                    {/* Failed categorization indicator */}
+                    {item.categorizationFailed && !isCategorizing && (
+                      <div className="relative">
+                        <button
+                          onClick={() => setSectionPickerItemId(sectionPickerItemId === item.id ? null : item.id)}
+                          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-[var(--color-warning, #d97706)] transition-all duration-150 ease-out hover:bg-[var(--color-warning, #d97706)]/10"
+                          aria-label="Categorization failed — click to pick a section"
+                          title="Categorization failed — click to pick a section"
+                        >
+                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </button>
+                        {/* Section picker dropdown */}
+                        {sectionPickerItemId === item.id && (
+                          <div className="absolute right-0 top-full z-50 mt-1 max-h-64 w-48 overflow-y-auto rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] py-1 shadow-brand-lg">
+                            {SECTIONS.map((s) => (
+                              <button
+                                key={s.key}
+                                onClick={() => assignSection(item.id, s.key)}
+                                className={`w-full px-3 py-2 text-left text-sm transition-colors duration-100 hover:bg-[var(--color-primary-lightest)] ${item.section === s.key ? "font-medium text-[var(--color-primary)]" : "text-[var(--foreground)]"}`}
+                              >
+                                {s.displayName}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* Remove button - always visible for mobile accessibility */}
                     <button
                       onClick={() => removeItem(item.id)}
@@ -835,6 +941,17 @@ export default function Home() {
         onDeleteList={(id) => {
           deleteList(id);
         }}
+      />
+
+      {/* Clear list confirmation modal */}
+      <ConfirmModal
+        isOpen={isClearConfirmOpen}
+        onConfirm={confirmClearList}
+        onCancel={() => setIsClearConfirmOpen(false)}
+        title="Clear List"
+        message="Remove all items from this list?"
+        confirmLabel="Clear List"
+        variant="danger"
       />
     </div>
   );
