@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useRef, useMemo, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useLists } from "@/lib/useLists";
+import { ListSwitcher } from "@/components/ListSwitcher";
+import { ListModal } from "@/components/ListModal";
+import { ArchivedListsModal } from "@/components/ArchivedListsModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -19,7 +23,6 @@ function useOnlineStatus(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-const LOCAL_STORAGE_KEY = "grocery-list";
 const PENDING_CATEGORIZATION_KEY = "grocery-list-pending-categorization";
 import type { GroceryItem, PendingCategorization, PendingDeletion } from "@/lib/types";
 import { FALLBACK_SECTION_KEY, SECTIONS, type SectionKey } from "@/lib/sections";
@@ -28,22 +31,10 @@ import {
   saveItemFrequency,
   incrementItemFrequency,
   getSuggestions,
+  aggregateItemFrequency,
   type ItemFrequency,
 } from "@/lib/autocomplete";
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
-
-function loadItemsFromStorage(): GroceryItem[] {
-  if (typeof window === "undefined") return [];
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved) as GroceryItem[];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
 
 function loadPendingCategorizations(): PendingCategorization[] {
   if (typeof window === "undefined") return [];
@@ -105,7 +96,15 @@ function registerServiceWorker() {
 registerServiceWorker();
 
 export default function Home() {
-  const [items, setItems] = useState<GroceryItem[]>(loadItemsFromStorage);
+  // List management hook
+  const { lists, activeListId, activeList, setActiveList, createList, updateList, updateListItems, deleteList, archiveList, restoreList, duplicateList } = useLists();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalKey, setEditModalKey] = useState(0);
+  const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
+
+  const [items, setItems] = useState<GroceryItem[]>(() => activeList?.items ?? []);
   const [inputValue, setInputValue] = useState("");
   const [categorizingItems, setCategorizingItems] = useState<Set<string>>(new Set());
   const [removingItems, setRemovingItems] = useState<Set<string>>(new Set());
@@ -113,7 +112,10 @@ export default function Home() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [pendingCategorizations, setPendingCategorizations] = useState<PendingCategorization[]>(loadPendingCategorizations);
   const [isRetryingPending, setIsRetryingPending] = useState(false);
-  const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(loadItemFrequency);
+  const [itemFrequency, setItemFrequency] = useState<ItemFrequency>(() => {
+    // Initialize from localStorage, will be updated from lists via useEffect
+    return loadItemFrequency();
+  });
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [pendingDeletions, setPendingDeletions] = useState<PendingDeletion[]>([]);
@@ -121,10 +123,19 @@ export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
 
-  // Save items to localStorage whenever they change
+  // Sync items from the active list when switching lists
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    setItems(activeList?.items ?? []);
+  }, [activeListId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist item changes back to the active list's storage
+  const activeListIdRef = useRef(activeListId);
+  activeListIdRef.current = activeListId;
+  useEffect(() => {
+    if (activeListIdRef.current) {
+      updateListItems(activeListIdRef.current, items);
+    }
+  }, [items, updateListItems]);
 
   // Mark initial load complete after first render
   useEffect(() => {
@@ -148,6 +159,13 @@ export default function Home() {
   useEffect(() => {
     savePendingCategorizations(pendingCategorizations);
   }, [pendingCategorizations]);
+
+  // Aggregate item frequency from all lists (including archived)
+  // This makes autocomplete suggestions list-aware
+  useEffect(() => {
+    const aggregated = aggregateItemFrequency(lists);
+    setItemFrequency(aggregated);
+  }, [lists]);
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -452,6 +470,37 @@ export default function Home() {
           </p>
           {/* Gradient accent line */}
           <div className="mx-auto mt-6 h-px w-24 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent opacity-40" />
+
+          {/* List switcher dropdown */}
+          <div className="mt-4 flex justify-center">
+            <ListSwitcher
+              lists={lists}
+              activeListId={activeListId}
+              activeList={activeList}
+              setActiveList={setActiveList}
+              onCreateNewList={() => {
+                setCreateModalKey((k) => k + 1);
+                setIsCreateModalOpen(true);
+              }}
+              onEditList={() => {
+                setEditModalKey((k) => k + 1);
+                setIsEditModalOpen(true);
+              }}
+              onArchiveList={() => {
+                if (activeListId) {
+                  archiveList(activeListId);
+                }
+              }}
+              onDuplicateList={() => {
+                if (activeListId) {
+                  duplicateList(activeListId);
+                }
+              }}
+              onViewArchived={() => {
+                setIsArchivedModalOpen(true);
+              }}
+            />
+          </div>
         </header>
 
         {/* Offline status indicator */}
@@ -750,6 +799,43 @@ export default function Home() {
           </button>
         </div>
       )}
+
+      {/* Create list modal */}
+      <ListModal
+        key={`create-${createModalKey}`}
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreateList={(name, icon, color) => {
+          createList(name, icon, color);
+        }}
+      />
+
+      {/* Edit list modal */}
+      <ListModal
+        key={`edit-${editModalKey}`}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        listToEdit={activeList}
+        onUpdateList={(id, updates) => {
+          updateList(id, updates);
+        }}
+        onDeleteList={(id) => {
+          deleteList(id);
+        }}
+      />
+
+      {/* Archived lists modal */}
+      <ArchivedListsModal
+        isOpen={isArchivedModalOpen}
+        onClose={() => setIsArchivedModalOpen(false)}
+        archivedLists={lists.filter((list) => list.isArchived)}
+        onRestoreList={(id) => {
+          restoreList(id);
+        }}
+        onDeleteList={(id) => {
+          deleteList(id);
+        }}
+      />
     </div>
   );
 }

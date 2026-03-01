@@ -1,4 +1,5 @@
 import type { SectionKey } from "./sections";
+import type { ShoppingList } from "./types";
 
 export type AutocompleteItem = {
   name: string;
@@ -9,6 +10,10 @@ export type ItemFrequency = Record<string, number>;
 
 export const ITEM_FREQUENCY_KEY = "grocery-list-item-frequency";
 
+/**
+ * Loads item frequency from localStorage (historical data).
+ * This is the legacy frequency data stored independently of lists.
+ */
 export function loadItemFrequency(): ItemFrequency {
   if (typeof window === "undefined") {
     return {};
@@ -22,6 +27,52 @@ export function loadItemFrequency(): ItemFrequency {
     // Invalid data, return empty
   }
   return {};
+}
+
+/**
+ * Builds item frequency from all shopping lists (active and archived).
+ * Each item name is counted once per list it appears in.
+ */
+export function buildFrequencyFromLists(lists: ShoppingList[]): ItemFrequency {
+  const frequency: ItemFrequency = {};
+
+  for (const list of lists) {
+    // Use a set per list to count each item only once per list
+    const seenInList = new Set<string>();
+
+    for (const item of list.items) {
+      const normalizedName = item.name.toLowerCase().trim();
+      if (!seenInList.has(normalizedName)) {
+        seenInList.add(normalizedName);
+        frequency[normalizedName] = (frequency[normalizedName] ?? 0) + 1;
+      }
+    }
+  }
+
+  return frequency;
+}
+
+/**
+ * Aggregates item frequency from all lists and historical data.
+ * This provides autocomplete suggestions based on all items across
+ * all lists, not just the current active list.
+ */
+export function aggregateItemFrequency(lists: ShoppingList[]): ItemFrequency {
+  // Get stored historical frequency
+  const storedFrequency = loadItemFrequency();
+
+  // Build frequency from all lists
+  const listsFrequency = buildFrequencyFromLists(lists);
+
+  // Merge: use the higher count for each item
+  const aggregated: ItemFrequency = { ...storedFrequency };
+
+  for (const [itemName, count] of Object.entries(listsFrequency)) {
+    // Take the maximum of stored and lists-based frequency
+    aggregated[itemName] = Math.max(aggregated[itemName] ?? 0, count);
+  }
+
+  return aggregated;
 }
 
 export function saveItemFrequency(frequency: ItemFrequency): void {
