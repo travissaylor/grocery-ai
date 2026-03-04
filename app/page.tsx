@@ -105,6 +105,7 @@ export default function Home() {
   const [editModalKey, setEditModalKey] = useState(0);
   const [isArchivedModalOpen, setIsArchivedModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isClearCheckedConfirmOpen, setIsClearCheckedConfirmOpen] = useState(false);
 
   const [items, setItems] = useState<GroceryItem[]>(() => activeList?.items ?? []);
   const [inputValue, setInputValue] = useState("");
@@ -480,6 +481,32 @@ export default function Home() {
     setIsClearConfirmOpen(false);
   };
 
+  const clearCheckedItems = () => {
+    setIsClearCheckedConfirmOpen(true);
+  };
+
+  const confirmClearCheckedItems = () => {
+    const checkedIds = items.filter((item) => item.checked).map((item) => item.id);
+    // Start the fade-out animation for all checked items
+    setRemovingItems((prev) => {
+      const next = new Set(prev);
+      for (const id of checkedIds) next.add(id);
+      return next;
+    });
+
+    // Wait for animation to complete before removing from state
+    setTimeout(() => {
+      setItems((prev) => prev.filter((item) => !item.checked));
+      setRemovingItems((prev) => {
+        const next = new Set(prev);
+        for (const id of checkedIds) next.delete(id);
+        return next;
+      });
+    }, 150);
+
+    setIsClearCheckedConfirmOpen(false);
+  };
+
   // Group items by section, maintaining the order defined in SECTIONS
   // and the order items were added within each section
   const groupedItems = useMemo(() => {
@@ -674,12 +701,22 @@ export default function Home() {
         </div>
 
         {items.length > 0 && (
-          <button
-            onClick={clearList}
-            className="mb-6 rounded-lg border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--color-neutral-600)] shadow-brand-sm transition-all duration-150 ease-out hover:bg-[var(--color-neutral-100)] hover:text-[var(--color-neutral-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-2 focus:ring-offset-[var(--background)] dark:border-[var(--color-neutral-600)] dark:hover:bg-[var(--color-neutral-200)] dark:hover:text-[var(--color-neutral-800)]"
-          >
-            Clear List
-          </button>
+          <div className="mb-6 flex gap-3">
+            <button
+              onClick={clearList}
+              className="rounded-lg border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--color-neutral-600)] shadow-brand-sm transition-all duration-150 ease-out hover:bg-[var(--color-neutral-100)] hover:text-[var(--color-neutral-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-2 focus:ring-offset-[var(--background)] dark:border-[var(--color-neutral-600)] dark:hover:bg-[var(--color-neutral-200)] dark:hover:text-[var(--color-neutral-800)]"
+            >
+              Clear List
+            </button>
+            {items.some((item) => item.checked) && (
+              <button
+                onClick={clearCheckedItems}
+                className="rounded-lg border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-2 text-sm font-medium text-[var(--color-neutral-600)] shadow-brand-sm transition-all duration-150 ease-out hover:bg-[var(--color-neutral-100)] hover:text-[var(--color-neutral-700)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:ring-offset-2 focus:ring-offset-[var(--background)] dark:border-[var(--color-neutral-600)] dark:hover:bg-[var(--color-neutral-200)] dark:hover:text-[var(--color-neutral-800)]"
+              >
+                Clear Checked
+              </button>
+            )}
+          </div>
         )}
 
         {/* Empty state */}
@@ -951,6 +988,17 @@ export default function Home() {
         title="Clear List"
         message="Remove all items from this list?"
         confirmLabel="Clear List"
+        variant="danger"
+      />
+
+      {/* Clear checked items confirmation modal */}
+      <ConfirmModal
+        isOpen={isClearCheckedConfirmOpen}
+        onConfirm={confirmClearCheckedItems}
+        onCancel={() => setIsClearCheckedConfirmOpen(false)}
+        title="Clear Checked Items"
+        message="Remove all checked items from this list?"
+        confirmLabel="Clear Checked"
         variant="danger"
       />
     </div>
