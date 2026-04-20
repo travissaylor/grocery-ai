@@ -42,6 +42,11 @@ export function AutocompleteDropdown({
           type="button"
           role="option"
           aria-selected={index === highlightedIndex}
+          // Prevent the input from blurring before click fires. On mobile,
+          // buttons don't receive focus on tap, so relatedTarget is null in
+          // the input's onBlur — which would close the dropdown and unmount
+          // this button before onClick could run.
+          onPointerDown={(e) => e.preventDefault()}
           onClick={() => onSelect(suggestion)}
           onMouseEnter={() => onHighlight(index)}
           className={`w-full px-5 py-3 text-left text-base transition-colors duration-75 first:rounded-t-xl last:rounded-b-xl ${
