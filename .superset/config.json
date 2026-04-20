@@ -1,0 +1,9 @@
+{
+  "setup": [
+    "cp ~/projects/grocery-list-ai/.env ."
+  ],
+  "teardown": [],
+  "run": [
+    "pnpm dev"
+  ]
+}
