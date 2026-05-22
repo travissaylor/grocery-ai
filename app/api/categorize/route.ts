@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     }
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.1-flash-lite",
       systemInstruction: SYSTEM_PROMPT,
     });
     const prompt = `${PROMPT_TEMPLATE}${item}</item>`;
