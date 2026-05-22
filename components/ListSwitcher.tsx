@@ -14,6 +14,7 @@ type ListSwitcherProps = {
   onEditList: () => void;
   onArchiveList: () => void;
   onDuplicateList: () => void;
+  onShareList: () => void;
   onViewArchived: () => void;
 };
 
@@ -44,6 +45,7 @@ export function ListSwitcher({
   onEditList,
   onArchiveList,
   onDuplicateList,
+  onShareList,
   onViewArchived,
 }: ListSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -209,6 +211,22 @@ export function ListSwitcher({
                 <path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span>Duplicate list</span>
+            </button>
+          )}
+
+          {/* Share active list option */}
+          {activeList && (
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                onShareList();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--color-neutral-600)] transition-colors duration-150 hover:bg-[var(--color-neutral-100)] dark:text-[var(--color-neutral-400)] dark:hover:bg-[var(--color-neutral-200)]"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span>Share list</span>
             </button>
           )}
 

@@ -125,6 +125,7 @@ export default function Home() {
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [categorizationFailedMessage, setCategorizationFailedMessage] = useState<string | null>(null);
   const [sectionPickerItemId, setSectionPickerItemId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -507,6 +508,81 @@ export default function Home() {
     setIsClearCheckedConfirmOpen(false);
   };
 
+  // Auto-dismiss toast after 3 seconds
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  const formatListForSharing = useCallback(() => {
+    if (!activeList) return "";
+    let text = `Grocery List: ${activeList.name}\n\n`;
+
+    const unchecked = items.filter(i => !i.checked);
+    const checked = items.filter(i => i.checked);
+
+    if (unchecked.length > 0) {
+      text += "To Buy:\n";
+      unchecked.forEach(item => text += `- [ ] ${item.name}\n`);
+      text += "\n";
+    }
+
+    if (checked.length > 0) {
+      text += "Got It:\n";
+      checked.forEach(item => text += `- [x] ${item.name}\n`);
+    }
+
+    return text.trim();
+  }, [activeList, items]);
+
+  const handleShareList = useCallback(async () => {
+    const text = formatListForSharing();
+    const shareData = {
+      title: activeList?.name || 'Grocery List',
+      text: text,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        } catch (err) {
+          console.warn("Clipboard API failed, using fallback:", err);
+          const textArea = document.createElement("textarea");
+          textArea.value = text;
+          textArea.style.position = "fixed";
+          textArea.style.opacity = "0";
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            copied = true;
+          } catch (e) {
+            console.error("Fallback clipboard copy failed:", e);
+          } finally {
+            document.body.removeChild(textArea);
+          }
+        }
+        
+        if (copied) {
+          setToastMessage("List copied to clipboard!");
+        } else {
+          setToastMessage("Failed to copy list");
+        }
+      }
+    } catch (error) {
+      console.error("Error sharing list:", error);
+    }
+  }, [formatListForSharing, activeList]);
+
   // Group items by section, maintaining the order defined in SECTIONS
   // and the order items were added within each section
   const groupedItems = useMemo(() => {
@@ -585,6 +661,7 @@ export default function Home() {
                   duplicateList(activeListId);
                 }
               }}
+              onShareList={handleShareList}
               onViewArchived={() => {
                 setIsArchivedModalOpen(true);
               }}
@@ -921,6 +998,22 @@ export default function Home() {
           ))}
         </div>
       </main>
+
+      {/* Share toast */}
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
+        >
+          <svg className="h-5 w-5 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          <span className="text-sm font-medium text-[var(--foreground)]">
+            {toastMessage}
+          </span>
+        </div>
+      )}
 
       {/* Undo toast */}
       {pendingDeletions.length > 0 && (
