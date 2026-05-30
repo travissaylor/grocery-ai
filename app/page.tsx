@@ -270,9 +270,9 @@ export default function Home() {
               return {
                 ...item,
                 section,
-                quantity: data.quantity || item.quantity,
-                unit: data.unit || item.unit,
-                name: data.cleanName || item.name,
+                quantity: item.quantity !== undefined ? item.quantity : data.quantity,
+                unit: item.unit !== undefined ? item.unit : data.unit,
+                name: item.name !== itemName ? item.name : (data.cleanName || item.name),
                 originalName: itemName,
                 pendingCategorization: false,
                 categorizationFailed: false
@@ -1026,7 +1026,11 @@ export default function Home() {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center group cursor-pointer" onClick={() => startEditingItem(item)}>
+                        <button
+                          type="button"
+                          className="flex w-full items-center text-left group cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 rounded-sm"
+                          onClick={() => startEditingItem(item)}
+                        >
                           {(item.quantity || item.unit) && (
                             <span className="mr-2 inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-lighter)] px-2 py-0.5 text-sm font-medium text-[var(--color-primary)] group-hover:bg-[var(--color-primary-light)] transition-colors dark:bg-[var(--color-primary)]/20 dark:group-hover:bg-[var(--color-primary)]/30">
                               {item.quantity && <span>{item.quantity}</span>}
@@ -1036,7 +1040,7 @@ export default function Home() {
                           <span className="group-hover:text-[var(--color-primary)] transition-colors">
                             {item.name}
                           </span>
-                        </div>
+                        </button>
                       )}
                       {/* Animated strikethrough line */}
                       <span
