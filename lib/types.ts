@@ -7,6 +7,9 @@ export type GroceryItem = {
   checked: boolean;
   pendingCategorization?: boolean;
   categorizationFailed?: boolean;
+  quantity?: string;
+  unit?: string;
+  originalName?: string;
 };
 
 export type PendingCategorization = {
