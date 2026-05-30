@@ -2,11 +2,13 @@
 
 Status: draft
 Owner: unassigned
-Origin: `/improve-codebase-architecture` analysis, May 2026
+Origin: `/improve-codebase-architecture` analysis, May 2026. Revised May 2026 to reflect the quantity/unit extraction feature shipped in PR #7.
 
 ## Problem
 
-AI categorization — a single logical operation — is spread across at least nine fragments inside `app/page.tsx`, the API route, and `localStorage`. The fragments couple tightly to one another but expose a thin, leaky surface to the rest of the app.
+AI item analysis — a single logical operation — is spread across at least nine fragments inside `app/page.tsx`, the API route, and `localStorage`. The fragments couple tightly to one another but expose a thin, leaky surface to the rest of the app.
+
+The operation has also grown. As of the quantity/unit feature (PR #7), the API no longer returns just a section — it returns a structured `{ section, quantity, unit, cleanName }` payload that the caller has to fan out across multiple fields on the item, while preserving any concurrent user edits. The seams listed below have gotten wider, not narrower.
 
 Concretely, today the following move together to implement one feature:
 
@@ -15,10 +17,10 @@ Concretely, today the following move together to implement one feature:
 - Four pieces of React state: `categorizingItems: Set<string>`, `pendingCategorizations: PendingCategorization[]`, `isRetryingPending: boolean`, `categorizationFailedMessage: string | null`.
 - Two `GroceryItem` fields (`pendingCategorization`, `categorizationFailed`) that are transient runtime state but get persisted to disk because they ride on the item.
 - Five `useEffect`s: persisting the queue, auto-dismissing the failure banner, subscribing to the `online` event for retries, and others.
-- A 65-line `async function categorizeItem` that distinguishes API errors from network errors and updates four observable stores.
+- A 65-line `async function categorizeItem` that distinguishes API errors from network errors, fans the structured AI response out across four fields on the item (`section`, `quantity`, `unit`, `name`/`originalName`), and bakes in a per-field "user edit wins over AI" precedence rule inline inside its `setItems` updater.
 - A separate `retryPendingCategorizations` for the manual-retry button.
 - An `assignSection` for the user-picks-a-section recovery path.
-- The Next.js API route at `app/api/categorize/route.ts` that talks to Gemini.
+- The Next.js API route at `app/api/categorize/route.ts` that talks to Gemini and returns the structured JSON shape.
 
 ### Integration risk at the seams
 
@@ -26,6 +28,7 @@ Concretely, today the following move together to implement one feature:
 - **Transient state is persisted.** Putting `pendingCategorization` / `categorizationFailed` on `GroceryItem` means the values are written to `localStorage` with the list. On reload, items can come back marked as failed or pending forever, with no live request behind them.
 - **Cancellation is unsafe.** When a user deletes an item before classification finishes, the in-flight request still calls `setItems` to apply the section to the now-deleted id. The update silently no-ops today, but the pattern is fragile.
 - **UI states are computed in three places.** Whether to render a shimmer, a clock icon, or a warning icon depends on combining `categorizingItems.has(id)`, `item.pendingCategorization`, and `item.categorizationFailed`. There's no single source of truth for "what's happening with this item right now."
+- **Per-field race-condition logic is inline at the merge site.** The AI response now carries `section`, `quantity`, `unit`, and `cleanName`. Because the user can edit `quantity` / `unit` (and by extension the displayed name) while the request is in flight, `categorizeItem` open-codes a precedence rule for every field — `item.quantity !== undefined ? item.quantity : data.quantity`, and similar for `unit` and `name`. The rule is correct today, but it's not named, not tested, and any future field added to the API response has to remember to participate.
 
 ### Why this hurts navigation and maintenance
 
@@ -41,26 +44,38 @@ A React-first deep module with a trivial default-case API and a small "advanced"
 ### Domain types
 
 ```ts
+// What the categorizer extracts from a raw item name. Mirrors the JSON
+// shape returned by POST /api/categorize.
+type Categorization = {
+  section: SectionKey;
+  quantity?: string;   // e.g. "2", "0.5"
+  unit?: string;       // e.g. "lbs", "gallons"
+  cleanName?: string;  // raw name with quantity/unit stripped
+};
+
 type CategorizationStatus =
   | { state: "running" }
   | { state: "pending-offline" }
   | { state: "failed" }
-  | { state: "done"; section: SectionKey };
+  | { state: "done"; result: Categorization };
 ```
 
-`GroceryItem` is reduced to domain data only — drop the `pendingCategorization` and `categorizationFailed` fields. The item carries `section` (initially `FALLBACK_SECTION_KEY`); transient status lives in the categorizer.
+`GroceryItem` is reduced to domain data only — drop the `pendingCategorization` and `categorizationFailed` fields. The item carries `section` (initially `FALLBACK_SECTION_KEY`), and `quantity` / `unit` / `originalName` as plain domain fields the user can read and edit. Transient status (running, queued, failed) lives in the categorizer, not on the item.
 
 ### Public React API
 
 ```ts
 type UseCategorizerOptions = {
-  // Called when an item reaches `done`. The caller applies the section
-  // to its own item store. The categorizer never mutates items directly.
-  onCategorized: (itemId: string, section: SectionKey) => void;
+  // Called when an item reaches `done`. The caller applies the structured
+  // result to its own item store. The categorizer never mutates items
+  // directly and never reads from them — including for precedence rules.
+  // If the caller wants user edits to win over AI values for specific
+  // fields, the merge happens here at the callsite (see Usage example).
+  onCategorized: (itemId: string, result: Categorization) => void;
 };
 
 interface Categorizer {
-  // Submit an item for classification. Idempotent per itemId — a second
+  // Submit an item for analysis. Idempotent per itemId — a second
   // call while the first is in-flight or queued is a no-op.
   categorize(itemId: string, name: string): void;
 
@@ -104,11 +119,20 @@ In production no provider is mounted; `useCategorizer` lazily constructs a modul
 function Home() {
   const items = useShoppingItems(activeList); // future candidate-1 hook
   const categorizer = useCategorizer({
-    onCategorized: items.assignSection,
+    // The caller decides which AI fields are allowed to clobber a
+    // concurrent user edit. Today's rule: user-set quantity / unit /
+    // name win; section is always taken from the AI (the user has no
+    // way to set it before the response arrives in this flow).
+    onCategorized: (id, ai) => items.merge(id, (current) => ({
+      section: ai.section,
+      quantity: current.quantity ?? ai.quantity,
+      unit: current.unit ?? ai.unit,
+      name: current.name !== current.originalName ? current.name : (ai.cleanName ?? current.name),
+    })),
   });
 
   const onAdd = (name: string) => {
-    const item = items.add(name); // returns the new item
+    const item = items.add({ name, originalName: name }); // returns the new item
     categorizer.categorize(item.id, name);
   };
 
@@ -146,7 +170,8 @@ The row renders shimmer / clock / warning / nothing purely from its `status`. No
 
 ### Complexity the module hides
 
-- The HTTP shape of `POST /api/categorize` and the API/network/unknown error taxonomy.
+- The HTTP shape of `POST /api/categorize`, the JSON parsing of the `{ section, quantity, unit, cleanName }` payload, and the API/network/unknown error taxonomy.
+- The mapping from the API's `displayName`-shaped section string back to a `SectionKey`, including the "Other" / unknown-section fallback.
 - The `localStorage` key, JSON encoding, and rehydration on construction.
 - The `window` `online` event listener and its drain-the-queue behavior.
 - A 100ms stagger between retried requests.
@@ -154,6 +179,8 @@ The row renders shimmer / clock / warning / nothing purely from its `status`. No
 - Per-id pub/sub so a single row's status change does not invalidate the whole list.
 - Mapping the unknown / API-error result to `failed` and clearing the in-flight state.
 - A best-effort cancellation (drop the result if the id has been cancelled).
+
+The module does *not* hide the precedence rule between AI values and concurrent user edits — that's a caller policy. The module surfaces the AI result intact and the caller composes it with whatever it knows about local state. See "Why this lives at the callsite" under Open questions.
 
 ## Dependency strategy
 
@@ -163,8 +190,10 @@ The categorizer talks to `POST /api/categorize` (a service we own), which in tur
 
 ```ts
 interface ClassifierPort {
-  classify(name: string, opts: { signal: AbortSignal }): Promise<SectionKey>;
+  classify(name: string, opts: { signal: AbortSignal }): Promise<Categorization>;
   // Throws NetworkError | ApiError. Module distinguishes them.
+  // Production adapter normalizes the API's section displayName → SectionKey
+  // and coerces missing quantity/unit/cleanName to `undefined`.
 }
 
 interface OnlinePort {
@@ -192,7 +221,10 @@ Each adapter is a small file (10-30 lines). The categorizer constructor is the o
 
 Tests live at the boundary of `Categorizer` and assert on observable behavior, not on internal state.
 
-- **Happy path.** `categorize(id, "milk")` → status flips to `running` → classifier resolves with `"dairy"` → status reaches `done` → `onCategorized` fired exactly once with `(id, "dairy")`.
+- **Happy path.** `categorize(id, "milk")` → status flips to `running` → classifier resolves with `{ section: "dairy" }` → status reaches `done` → `onCategorized` fired exactly once with `(id, { section: "dairy" })`.
+- **Structured extraction.** `categorize(id, "2 gallons milk")` → classifier resolves with `{ section: "dairy", quantity: "2", unit: "gallons", cleanName: "milk" }` → `onCategorized` receives the full payload intact; the `done` status's `result` field matches.
+- **Partial extraction.** Classifier resolves with `{ section: "produce" }` (no quantity/unit/cleanName) → `onCategorized` receives `{ section: "produce" }` with the optional fields absent, not stringified `"null"` or `"undefined"`. (Regression guard for the API route's quantity/unit coercion.)
+- **Section displayName mapping.** Classifier resolves with the API's `displayName` shape (`"Dairy & Eggs"`) → caller receives the canonical `SectionKey` (`"dairy"`). Unknown displayNames map to `"other"`.
 - **API failure.** Classifier rejects with `ApiError` → status reaches `failed` → `onCategorized` never fired.
 - **Manual recovery.** From `failed`, `advanced.assignManually(id, "produce")` fires `onCategorized(id, "produce")` and removes the id from `useFailedIds()`.
 - **Offline path.** With `online=false`, `categorize(id, name)` → status is `pending-offline`, classifier was not called.
@@ -204,7 +236,17 @@ Tests live at the boundary of `Categorizer` and assert on observable behavior, n
 - **Reload rehydration.** Construct categorizer with a non-empty `StoragePort` → ids appear in `useFailedIds()` / `usePendingIds()` immediately → if online, drain begins automatically.
 - **Persistence write-through.** `categorize(id, name)` while offline → `StoragePort.save` was called with the new id.
 - **Persistence on success.** Once an id reaches `done`, it is removed from `StoragePort` (no leaked entries across reloads).
-- **No transient state leaks to items.** `GroceryItem` shape no longer carries `pendingCategorization` / `categorizationFailed`; assert the type does not have these fields.
+- **No transient state leaks to items.** `GroceryItem` shape no longer carries `pendingCategorization` / `categorizationFailed`; assert the type does not have these fields. `quantity`, `unit`, and `originalName` remain on the item as durable domain data.
+
+### Caller-side merge tests (not categorizer tests, but worth writing alongside)
+
+The user-edit-wins precedence rule moves out of `categorizeItem` and into the `onCategorized` callback at the callsite. These tests cover that callback's behavior, so the rule is named and asserted somewhere instead of being a buried line in the deep module:
+
+- User edits `quantity` while in-flight → `onCategorized` fires with the AI's quantity → final item retains the user's value.
+- User edits `unit` to `"bags"` while in-flight → final item retains `"bags"` even if the AI returned `"lbs"`.
+- User edits `name` after add (so `name !== originalName`) → final item retains the edited name even if the AI returned a different `cleanName`.
+- User never touched anything → AI's `cleanName`, `quantity`, `unit` are applied.
+- `section` is always taken from the AI on the success path (no user-set section to defend, since the failed-section-picker is on a different status branch).
 
 ### Old tests to delete
 
@@ -250,7 +292,8 @@ Durable guidance, not coupled to file paths.
 2. Implement the module with its three ports and adapters in isolation. Write the boundary tests first; let them drive the surface.
 3. In the page, replace the four state stores (`categorizingItems`, `pendingCategorizations`, `isRetryingPending`, `categorizationFailedMessage`) and the helpers (`loadPendingCategorizations`, `savePendingCategorizations`) with `useCategorizer({ onCategorized })`. The replacement is mechanical: each store maps to a hook or is deleted.
 4. Replace the inline `categorizeItem` and `retryPendingCategorizations` with `categorizer.categorize` and `categorizer.advanced.retryAll`. Delete the `useEffect` that listens for the `online` event; the module owns it now.
-5. Remove `pendingCategorization` and `categorizationFailed` from the `GroceryItem` type. Update rendering to use `useStatus(item.id)` instead of reading from the item. Migrate any persisted items by stripping the fields on read (one-shot; lists outlive the type change).
+5. Remove `pendingCategorization` and `categorizationFailed` from the `GroceryItem` type. Keep `quantity`, `unit`, and `originalName` — those are durable domain fields that survive the refactor. Update rendering to use `useStatus(item.id)` instead of reading the transient fields from the item. Migrate any persisted items by stripping `pendingCategorization` and `categorizationFailed` on read (one-shot; lists outlive the type change).
+   - Inline the four-field precedence rule (`current.quantity ?? ai.quantity`, etc.) into the `onCategorized` callback. The rule that currently lives at `app/page.tsx:268-282` ports over literally; the only change is that it reads from a single source of truth (the items hook's current state) instead of from inside a `setItems` updater.
 6. Replace the failure-picker dropdown's logic with `useFailedIds()` + `advanced.assignManually(id, section)`.
 7. Replace the "Retry N items" button with `usePendingIds()` + `advanced.retryAll()`.
 8. Delete the `useOnlineStatus` hook and its only remaining caller (the offline banner) — either fold the banner into the categorizer's surface or keep `useOnlineStatus` as a tiny utility hook if other UI still needs it. (It does, for the "you're offline" header banner — keep it as a 12-line utility, separate from the categorizer.)
@@ -269,9 +312,11 @@ Three independent design sketches were produced in parallel as part of the analy
 
 ## Open questions
 
+- **Where the AI-vs-user precedence rule lives.** The categorizer surfaces `Categorization` to the caller and the caller composes it with local state. Alternative: pass a `merge(current, ai) => next` function into `useCategorizer` so the rule lives in one place per app. Recommend the callsite version because (a) the rule reads naturally next to the items hook, (b) adding fields to `Categorization` later doesn't require touching the categorizer's options shape, (c) the module stays unaware of `GroceryItem`. *Why this lives at the callsite:* the rule is a policy about user intent, not about the AI response. Moving it into the categorizer would force the module to import the item type and re-introduce the coupling the refactor is meant to remove.
 - **`retryAll` semantics when offline.** Should it no-op, or queue and let reconnect drain? Pick one and document it.
 - **Failure-banner copy ownership.** Currently the banner string "Couldn't auto-categorize \"X\" — tap the warning icon…" is generated in `categorizeItem`. The module can expose `useFailedIds()` and let the UI compose the string, which keeps copy out of the module. Recommend that.
-- **Migration of persisted items carrying the old transient fields.** On the first read after deploy, strip `pendingCategorization` / `categorizationFailed` from each loaded item. No version bump needed; the fields just disappear.
+- **Migration of persisted items carrying the old transient fields.** On the first read after deploy, strip `pendingCategorization` / `categorizationFailed` from each loaded item. No version bump needed; the fields just disappear. `quantity`, `unit`, and `originalName` are preserved as-is.
+- **Future-proofing the `Categorization` shape.** Adding fields (e.g. a `brand` extractor, a confidence score) is a non-breaking change to the module but requires every callsite's merge function to opt in. Acceptable for one caller today; revisit if the surface grows past two or three call sites.
 - **Whether a `RetryBanner` calling `useCategorizer({ onCategorized: noop })` is acceptable.** The wart is real. Alternative: the singleton holds `onCategorized` as a one-time-init slot, and any subsequent `useCategorizer()` call (no args) joins the existing instance. Recommend the latter for ergonomics; document that the first call wins.
 
 ## Out of scope
