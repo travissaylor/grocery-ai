@@ -125,6 +125,9 @@ export default function Home() {
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [categorizationFailedMessage, setCategorizationFailedMessage] = useState<string | null>(null);
   const [sectionPickerItemId, setSectionPickerItemId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editQuantity, setEditQuantity] = useState<string>("");
+  const [editUnit, setEditUnit] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -262,9 +265,21 @@ export default function Home() {
         setCategorizationFailedMessage(`Couldn't auto-categorize "${itemName}" — tap the warning icon to pick a section`);
       } else {
         setItems((prev) =>
-          prev.map((item) =>
-            item.id === itemId ? { ...item, section, pendingCategorization: false, categorizationFailed: false } : item
-          )
+          prev.map((item) => {
+            if (item.id === itemId) {
+              return {
+                ...item,
+                section,
+                quantity: data.quantity || item.quantity,
+                unit: data.unit || item.unit,
+                name: data.cleanName || item.name,
+                originalName: itemName,
+                pendingCategorization: false,
+                categorizationFailed: false
+              };
+            }
+            return item;
+          })
         );
       }
 
@@ -328,6 +343,31 @@ export default function Home() {
       )
     );
     setSectionPickerItemId(null);
+  };
+
+  const startEditingItem = (item: GroceryItem) => {
+    setEditingItemId(item.id);
+    setEditQuantity(item.quantity || "");
+    setEditUnit(item.unit || "");
+  };
+
+  const saveItemEdits = (itemId: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              quantity: editQuantity.trim() || undefined,
+              unit: editUnit.trim() || undefined,
+            }
+          : item
+      )
+    );
+    setEditingItemId(null);
+  };
+
+  const cancelEditingItem = () => {
+    setEditingItemId(null);
   };
 
   const addItem = (suggestion?: string) => {
@@ -921,11 +961,87 @@ export default function Home() {
                         item.checked ? "text-[var(--color-neutral-400)]" : ""
                       }`}
                     >
-                      {item.name}
+                      {editingItemId === item.id ? (
+                        <div className="flex flex-wrap items-center gap-2 pr-4 sm:flex-nowrap">
+                          <input
+                            type="text"
+                            value={editQuantity}
+                            onChange={(e) => setEditQuantity(e.target.value)}
+                            placeholder="Qty (e.g. 2)"
+                            className="w-20 rounded-md border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-2 py-1 text-sm text-[var(--foreground)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] dark:border-[var(--color-neutral-500)]"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveItemEdits(item.id);
+                              if (e.key === "Escape") cancelEditingItem();
+                            }}
+                          />
+                          <input
+                            type="text"
+                            list="unit-options"
+                            value={editUnit}
+                            onChange={(e) => setEditUnit(e.target.value)}
+                            placeholder="Unit (e.g. lbs)"
+                            className="w-24 rounded-md border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-2 py-1 text-sm text-[var(--foreground)] focus:border-[var(--color-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)] dark:border-[var(--color-neutral-500)]"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveItemEdits(item.id);
+                              if (e.key === "Escape") cancelEditingItem();
+                            }}
+                          />
+                          <datalist id="unit-options">
+                            <option value="oz" />
+                            <option value="lbs" />
+                            <option value="g" />
+                            <option value="kg" />
+                            <option value="gal" />
+                            <option value="L" />
+                            <option value="cups" />
+                            <option value="tbsp" />
+                            <option value="tsp" />
+                            <option value="pcs" />
+                            <option value="boxes" />
+                            <option value="bags" />
+                            <option value="cans" />
+                            <option value="jars" />
+                            <option value="bottles" />
+                          </datalist>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => saveItemEdits(item.id)}
+                              className="rounded-md p-1 text-[var(--color-primary)] hover:bg-[var(--color-primary-lighter)] dark:hover:bg-[var(--color-primary)]/20"
+                              aria-label="Save"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={cancelEditingItem}
+                              className="rounded-md p-1 text-[var(--color-neutral-500)] hover:bg-[var(--color-neutral-200)] dark:hover:bg-[var(--color-neutral-700)]"
+                              aria-label="Cancel"
+                            >
+                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center group cursor-pointer" onClick={() => startEditingItem(item)}>
+                          {(item.quantity || item.unit) && (
+                            <span className="mr-2 inline-flex items-center gap-1 rounded-md bg-[var(--color-primary-lighter)] px-2 py-0.5 text-sm font-medium text-[var(--color-primary)] group-hover:bg-[var(--color-primary-light)] transition-colors dark:bg-[var(--color-primary)]/20 dark:group-hover:bg-[var(--color-primary)]/30">
+                              {item.quantity && <span>{item.quantity}</span>}
+                              {item.unit && <span>{item.unit}</span>}
+                            </span>
+                          )}
+                          <span className="group-hover:text-[var(--color-primary)] transition-colors">
+                            {item.name}
+                          </span>
+                        </div>
+                      )}
                       {/* Animated strikethrough line */}
                       <span
                         className={`pointer-events-none absolute left-0 top-1/2 h-px bg-[var(--color-neutral-400)] transition-all duration-200 ease-out ${
-                          item.checked ? "w-full" : "w-0"
+                          item.checked && editingItemId !== item.id ? "w-full" : "w-0"
                         }`}
                       />
                     </span>
