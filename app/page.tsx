@@ -6,6 +6,7 @@ import { ListSwitcher } from "@/components/ListSwitcher";
 import { ListModal } from "@/components/ListModal";
 import { ArchivedListsModal } from "@/components/ArchivedListsModal";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { PasteListModal } from "@/components/PasteListModal";
 
 // Custom hook to track online/offline status
 function useOnlineStatus(): boolean {
@@ -36,6 +37,17 @@ import {
   type ItemFrequency,
 } from "@/lib/autocomplete";
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
+import {
+  MAX_PASTE_CHARS,
+  MAX_PARSED_ITEMS,
+  requestParsedList,
+  buildItemsFromParsed,
+  splitPastedText,
+  isMultiLinePaste,
+  ParseListError,
+} from "@/lib/parse-list";
+
+const PASTE_TOO_LONG_MESSAGE = `That list is too long (max ${MAX_PASTE_CHARS.toLocaleString("en-US")} characters)`;
 
 function loadPendingCategorizations(): PendingCategorization[] {
   if (typeof window === "undefined") return [];
@@ -129,6 +141,9 @@ export default function Home() {
   const [editQuantity, setEditQuantity] = useState<string>("");
   const [editUnit, setEditUnit] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [pasteModalKey, setPasteModalKey] = useState(0);
+  const [isAddingList, setIsAddingList] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -141,6 +156,11 @@ export default function Home() {
   // Persist item changes back to the active list's storage
   const activeListIdRef = useRef(activeListId);
   activeListIdRef.current = activeListId;
+  // Latest items/frequency for async paste handling (avoids stale closures)
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const itemFrequencyRef = useRef(itemFrequency);
+  itemFrequencyRef.current = itemFrequency;
   useEffect(() => {
     if (activeListIdRef.current) {
       updateListItems(activeListIdRef.current, items);
@@ -410,6 +430,86 @@ export default function Home() {
     categorizeItem(newItem.id, trimmedValue);
   };
 
+  // Append a batch of new items in one update, animate them, bump frequency, and summarize.
+  // `overflow` counts items past MAX_PARSED_ITEMS that weren't added.
+  const appendItemBatch = (added: GroceryItem[], skipped: string[], overflow: number) => {
+    const overflowNote =
+      overflow > 0 ? ` · ${overflow} more didn't fit (${MAX_PARSED_ITEMS} max per paste) — paste them separately` : "";
+
+    if (added.length === 0) {
+      setToastMessage(
+        (skipped.length > 0 ? "All of those are already on your list" : "Couldn't find any items in that text") +
+          overflowNote
+      );
+      return;
+    }
+
+    setItems((prev) => [...prev, ...added]);
+    setNewItems((prev) => {
+      const next = new Set(prev);
+      added.forEach((item) => next.add(item.id));
+      return next;
+    });
+
+    const newFrequency = added.reduce(
+      (frequency, item) => incrementItemFrequency(item.name, frequency),
+      itemFrequencyRef.current
+    );
+    saveItemFrequency(newFrequency);
+    setItemFrequency(newFrequency);
+
+    const skippedNote = skipped.length > 0 ? ` · skipped ${skipped.length} already on your list` : "";
+    setToastMessage(`Added ${added.length} item${added.length !== 1 ? "s" : ""}${skippedNote}${overflowNote}`);
+  };
+
+  // Fallback when the list parser is unavailable: add each line, then categorize one by one
+  const addLinesIndividually = (lines: string[]) => {
+    const { added, skipped } = buildItemsFromParsed(
+      lines.slice(0, MAX_PARSED_ITEMS).map((name) => ({ name, section: FALLBACK_SECTION_KEY })),
+      itemsRef.current
+    );
+    appendItemBatch(added, skipped, Math.max(0, lines.length - MAX_PARSED_ITEMS));
+
+    // Stagger categorizations to avoid overwhelming the API
+    added.forEach((item, index) => {
+      setTimeout(() => categorizeItem(item.id, item.name), index * 100);
+    });
+  };
+
+  const addPastedList = async (text: string) => {
+    if (isAddingList || !text.trim()) return;
+    if (text.length > MAX_PASTE_CHARS) {
+      setToastMessage(PASTE_TOO_LONG_MESSAGE);
+      return;
+    }
+
+    // If the user switches lists mid-request, don't write the items into the new list
+    const listIdAtStart = activeListIdRef.current;
+    const switchedLists = () => {
+      if (activeListIdRef.current === listIdAtStart) return false;
+      setToastMessage("Switched lists — pasted items weren't added");
+      return true;
+    };
+
+    setIsAddingList(true);
+    try {
+      const { items: parsed, overflow } = await requestParsedList(text);
+      if (switchedLists()) return;
+      const { added, skipped } = buildItemsFromParsed(parsed, itemsRef.current);
+      appendItemBatch(added, skipped, overflow);
+    } catch (error) {
+      if (error instanceof ParseListError && error.kind === "too-long") {
+        setToastMessage(PASTE_TOO_LONG_MESSAGE);
+        return;
+      }
+      // Network/API failure — fall back to adding lines individually
+      if (switchedLists()) return;
+      addLinesIndividually(splitPastedText(text));
+    } finally {
+      setIsAddingList(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const suggestions = getSuggestions(inputValue, itemFrequency);
 
@@ -551,9 +651,10 @@ export default function Home() {
   // Auto-dismiss toast after 3 seconds
   useEffect(() => {
     if (!toastMessage) return;
+    // Give longer messages (e.g. paste overflow notes) time to be read
     const timer = setTimeout(() => {
       setToastMessage(null);
-    }, 3000);
+    }, toastMessage.length > 60 ? 6000 : 3000);
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
@@ -779,8 +880,19 @@ export default function Home() {
                   }
                 }}
                 onKeyDown={handleKeyDown}
+                onPaste={(e) => {
+                  // Multi-line pastes are parsed into separate items in one request
+                  const text = e.clipboardData.getData("text");
+                  if (isMultiLinePaste(text)) {
+                    e.preventDefault();
+                    setInputValue("");
+                    setIsDropdownOpen(false);
+                    void addPastedList(text);
+                  }
+                }}
+                disabled={isAddingList}
                 placeholder="Add an item (e.g., milk, bread...)"
-                className="w-full rounded-xl border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-5 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--color-neutral-400)] shadow-brand-md transition-all duration-150 ease-out focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 dark:border-[var(--color-neutral-400)] dark:placeholder-[var(--color-neutral-500)]"
+                className="w-full rounded-xl border border-[var(--color-neutral-300)] bg-[var(--input-bg)] px-5 py-3.5 text-base text-[var(--foreground)] placeholder-[var(--color-neutral-400)] shadow-brand-md transition-all duration-150 ease-out focus:border-[var(--color-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 dark:border-[var(--color-neutral-400)] dark:placeholder-[var(--color-neutral-500)] disabled:cursor-not-allowed disabled:opacity-70"
                 autoFocus
               />
               <AutocompleteDropdown
@@ -794,15 +906,44 @@ export default function Home() {
             </div>
             <button
               onClick={() => addItem()}
-              className="rounded-xl bg-[var(--color-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-brand-md transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] hover:shadow-brand-lg active:scale-[0.98] active:bg-[var(--color-primary-active)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+              disabled={isAddingList}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-brand-md transition-all duration-150 ease-out hover:bg-[var(--color-primary-hover)] hover:shadow-brand-lg active:scale-[0.98] active:bg-[var(--color-primary-active)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:ring-offset-2 focus:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Add
+              {isAddingList ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <span>Adding…</span>
+                </>
+              ) : (
+                "Add"
+              )}
             </button>
           </div>
-          {/* Keyboard shortcut hint */}
-          <p className="mt-2.5 text-center text-sm text-[var(--color-neutral-400)]">
-            Press <span className="font-medium text-[var(--color-neutral-500)]">⏎</span> to add
-          </p>
+          {/* Keyboard shortcut hint + paste a list */}
+          <div className="mt-2.5 flex items-center justify-center gap-2 text-sm text-[var(--color-neutral-400)]">
+            <p>
+              Press <span className="font-medium text-[var(--color-neutral-500)]">⏎</span> to add
+            </p>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              onClick={() => {
+                setPasteModalKey((k) => k + 1);
+                setIsPasteModalOpen(true);
+              }}
+              disabled={isAddingList}
+              className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] transition-colors duration-150 ease-out hover:text-[var(--color-primary-hover)] hover:underline focus:outline-none focus-visible:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+              </svg>
+              Paste a list
+            </button>
+          </div>
           {/* Duplicate item warning */}
           {duplicateWarning && (
             <p className="mt-2 text-center text-sm text-[var(--color-error)]">
@@ -1126,7 +1267,7 @@ export default function Home() {
           aria-live="polite"
           className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
         >
-          <svg className="h-5 w-5 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="h-5 w-5 shrink-0 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6L9 17l-5-5" />
           </svg>
           <span className="text-sm font-medium text-[var(--foreground)]">
@@ -1213,6 +1354,18 @@ export default function Home() {
         message="Remove all checked items from this list?"
         confirmLabel="Clear Checked"
         variant="danger"
+      />
+
+      {/* Paste list modal */}
+      <PasteListModal
+        key={`paste-${pasteModalKey}`}
+        isOpen={isPasteModalOpen}
+        maxLength={MAX_PASTE_CHARS}
+        onCancel={() => setIsPasteModalOpen(false)}
+        onSubmit={(text) => {
+          setIsPasteModalOpen(false);
+          void addPastedList(text);
+        }}
       />
     </div>
   );
