@@ -119,18 +119,20 @@ export async function requestParsedList(
 }
 
 /**
- * Converts parsed items into new GroceryItems. Skips items whose name matches
- * an unchecked existing item or an earlier item in the same batch.
+ * Converts parsed items into new GroceryItems. Items whose name matches an
+ * unchecked existing item are reported in `skipped`; repeats within the same
+ * batch are dropped silently.
  */
 export function buildItemsFromParsed(
   parsed: ParsedListItem[],
   existing: GroceryItem[]
 ): { added: GroceryItem[]; skipped: string[] } {
-  const seen = new Set(
+  const onList = new Set(
     existing
       .filter((item) => !item.checked)
       .map((item) => item.name.trim().toLowerCase())
   );
+  const inBatch = new Set<string>();
   const added: GroceryItem[] = [];
   const skipped: string[] = [];
 
@@ -138,11 +140,12 @@ export function buildItemsFromParsed(
     const name = entry.name.trim();
     if (!name) continue;
     const normalized = name.toLowerCase();
-    if (seen.has(normalized)) {
+    if (inBatch.has(normalized)) continue;
+    inBatch.add(normalized);
+    if (onList.has(normalized)) {
       skipped.push(name);
       continue;
     }
-    seen.add(normalized);
 
     const item: GroceryItem = {
       id: crypto.randomUUID(),
