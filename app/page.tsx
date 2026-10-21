@@ -39,6 +39,7 @@ import {
 import { AutocompleteDropdown } from "@/lib/autocomplete-dropdown";
 import {
   MAX_PASTE_CHARS,
+  MAX_PARSED_ITEMS,
   requestParsedList,
   buildItemsFromParsed,
   splitPastedText,
@@ -429,11 +430,16 @@ export default function Home() {
     categorizeItem(newItem.id, trimmedValue);
   };
 
-  // Append a batch of new items in one update, animate them, bump frequency, and summarize
-  const appendItemBatch = (added: GroceryItem[], skipped: string[]) => {
+  // Append a batch of new items in one update, animate them, bump frequency, and summarize.
+  // `overflow` counts items past MAX_PARSED_ITEMS that weren't added.
+  const appendItemBatch = (added: GroceryItem[], skipped: string[], overflow: number) => {
+    const overflowNote =
+      overflow > 0 ? ` · ${overflow} more didn't fit (${MAX_PARSED_ITEMS} max per paste) — paste them separately` : "";
+
     if (added.length === 0) {
       setToastMessage(
-        skipped.length > 0 ? "All of those are already on your list" : "Couldn't find any items in that text"
+        (skipped.length > 0 ? "All of those are already on your list" : "Couldn't find any items in that text") +
+          overflowNote
       );
       return;
     }
@@ -453,16 +459,16 @@ export default function Home() {
     setItemFrequency(newFrequency);
 
     const skippedNote = skipped.length > 0 ? ` · skipped ${skipped.length} already on your list` : "";
-    setToastMessage(`Added ${added.length} item${added.length !== 1 ? "s" : ""}${skippedNote}`);
+    setToastMessage(`Added ${added.length} item${added.length !== 1 ? "s" : ""}${skippedNote}${overflowNote}`);
   };
 
   // Fallback when the list parser is unavailable: add each line, then categorize one by one
   const addLinesIndividually = (lines: string[]) => {
     const { added, skipped } = buildItemsFromParsed(
-      lines.map((name) => ({ name, section: FALLBACK_SECTION_KEY })),
+      lines.slice(0, MAX_PARSED_ITEMS).map((name) => ({ name, section: FALLBACK_SECTION_KEY })),
       itemsRef.current
     );
-    appendItemBatch(added, skipped);
+    appendItemBatch(added, skipped, Math.max(0, lines.length - MAX_PARSED_ITEMS));
 
     // Stagger categorizations to avoid overwhelming the API
     added.forEach((item, index) => {
@@ -487,10 +493,10 @@ export default function Home() {
 
     setIsAddingList(true);
     try {
-      const parsed = await requestParsedList(text);
+      const { items: parsed, overflow } = await requestParsedList(text);
       if (switchedLists()) return;
       const { added, skipped } = buildItemsFromParsed(parsed, itemsRef.current);
-      appendItemBatch(added, skipped);
+      appendItemBatch(added, skipped, overflow);
     } catch (error) {
       if (error instanceof ParseListError && error.kind === "too-long") {
         setToastMessage(PASTE_TOO_LONG_MESSAGE);
@@ -645,9 +651,10 @@ export default function Home() {
   // Auto-dismiss toast after 3 seconds
   useEffect(() => {
     if (!toastMessage) return;
+    // Give longer messages (e.g. paste overflow notes) time to be read
     const timer = setTimeout(() => {
       setToastMessage(null);
-    }, 3000);
+    }, toastMessage.length > 60 ? 6000 : 3000);
     return () => clearTimeout(timer);
   }, [toastMessage]);
 
@@ -1260,7 +1267,7 @@ export default function Home() {
           aria-live="polite"
           className="fixed bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-[var(--color-neutral-300)] bg-[var(--card-bg)] px-4 py-3 shadow-brand-lg animate-slide-up dark:border-[var(--color-neutral-600)]"
         >
-          <svg className="h-5 w-5 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="h-5 w-5 shrink-0 text-[var(--color-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6L9 17l-5-5" />
           </svg>
           <span className="text-sm font-medium text-[var(--foreground)]">

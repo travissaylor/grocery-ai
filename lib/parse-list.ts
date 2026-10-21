@@ -15,6 +15,12 @@ export type ParsedListItem = {
   source?: string; // original line the item came from
 };
 
+/** Result of parsing a paste. `overflow` counts items past MAX_PARSED_ITEMS that weren't returned. */
+export type ParsedList = {
+  items: ParsedListItem[];
+  overflow: number;
+};
+
 export type ParseListErrorKind = "network" | "api" | "too-long";
 
 /** Error thrown by requestParsedList; `kind` tells callers how to react. */
@@ -56,13 +62,14 @@ function normalizeParsedItem(raw: unknown): ParsedListItem | null {
 }
 
 /**
- * Sends pasted text to POST /api/parse-list and returns the parsed items.
+ * Sends pasted text to POST /api/parse-list and returns the parsed items plus
+ * how many were cut off by MAX_PARSED_ITEMS.
  * Throws ParseListError with kind "too-long", "network", or "api".
  */
 export async function requestParsedList(
   text: string,
   opts?: { signal?: AbortSignal }
-): Promise<ParsedListItem[]> {
+): Promise<ParsedList> {
   if (text.length > MAX_PASTE_CHARS) {
     throw new ParseListError("too-long", "Pasted text is too long");
   }
@@ -112,10 +119,15 @@ export async function requestParsedList(
     throw new ParseListError("api", "Unexpected response from parse-list");
   }
 
-  return record.items
+  const items = record.items
     .map(normalizeParsedItem)
-    .filter((item): item is ParsedListItem => item !== null)
-    .slice(0, MAX_PARSED_ITEMS);
+    .filter((item): item is ParsedListItem => item !== null);
+  const serverOverflow =
+    typeof record.overflow === "number" && record.overflow > 0 ? record.overflow : 0;
+  return {
+    items: items.slice(0, MAX_PARSED_ITEMS),
+    overflow: serverOverflow + Math.max(0, items.length - MAX_PARSED_ITEMS),
+  };
 }
 
 /**
@@ -168,6 +180,7 @@ const LIST_MARKER_PATTERN = /^(?:[-*•·–—]\s*|\d+[.)]\s+|\[[ xX]?\]\s*|[�
 /**
  * Offline/error fallback: splits pasted text into item names, stripping list
  * markers, dropping blanks and "Header:" lines, and deduping case-insensitively.
+ * Not capped; callers apply MAX_PARSED_ITEMS so they can report the overflow.
  */
 export function splitPastedText(text: string): string[] {
   const seen = new Set<string>();
@@ -187,13 +200,16 @@ export function splitPastedText(text: string): string[] {
     if (seen.has(key)) continue;
     seen.add(key);
     names.push(name);
-    if (names.length >= MAX_PARSED_ITEMS) break;
   }
 
   return names;
 }
 
-/** True when the paste has a newline and splits into 2+ item names. */
+/**
+ * True when the paste has 2+ non-blank lines. Judged on the raw text, before
+ * headers are dropped or duplicates merged, so "Produce:\napples" still goes
+ * to the list parser instead of being flattened into the single-line input.
+ */
 export function isMultiLinePaste(text: string): boolean {
-  return /\r?\n/.test(text) && splitPastedText(text).length >= 2;
+  return text.split(/\r?\n/).filter((line) => line.trim()).length >= 2;
 }

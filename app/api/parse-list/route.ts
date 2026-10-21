@@ -122,12 +122,19 @@ export async function POST(request: Request) {
       ? parsed.items
       : [];
     const items: ParsedListItem[] = [];
+    // Items past MAX_PARSED_ITEMS are counted, not silently dropped, so the
+    // client can tell the user part of their paste wasn't added.
+    let overflow = 0;
 
     for (const raw of rawItems) {
       if (!raw || typeof raw !== "object") continue;
       const entry = raw as Record<string, unknown>;
       const name = typeof entry.name === "string" ? entry.name.trim() : "";
       if (!name) continue;
+      if (items.length >= MAX_PARSED_ITEMS) {
+        overflow++;
+        continue;
+      }
 
       items.push({
         name,
@@ -136,11 +143,9 @@ export async function POST(request: Request) {
         unit: cleanOptional(entry.unit),
         source: cleanOptional(entry.source),
       });
-
-      if (items.length >= MAX_PARSED_ITEMS) break;
     }
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, overflow });
   } catch {
     return NextResponse.json({ items: [], error: true });
   }
